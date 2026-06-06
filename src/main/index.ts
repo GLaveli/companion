@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { IPC, type AvatarLayout, type EdgeVoiceSettings, type ModelStatus } from '../shared/types'
+import { VOICE_PREVIEW_LINE } from '../shared/voiceText'
 import { initLlm, chat, resetChat, isLlmReady } from './services/llm'
 import { getGptSoVitsStatus, previewEdgeVoice, speak } from './services/tts'
 import { startGptSoVitsServer, stopGptSoVitsServer } from './services/gptsovitsProcess'
@@ -85,7 +86,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.ttsSpeak, async (_e, text: string, emotion, voice) => speak(text, { emotion, voice }))
   ipcMain.handle(IPC.voiceList, async () => listVoiceEntries())
   ipcMain.handle(IPC.voicePreview, async () =>
-    speak('Oi! Eu sou a Lotus, sua companheira virtual. Que bom falar com voce!', {
+    speak(VOICE_PREVIEW_LINE, {
       emotion: 'happy'
     })
   )
@@ -97,7 +98,7 @@ function registerIpc(): void {
     await setActiveVoiceProfile(id)
     const entries = await listVoiceEntries()
     const entry = entries.find((e) => e.id === id)
-    if (!entry) throw new Error(`Perfil de voz nao encontrado: ${id}`)
+    if (!entry) throw new Error(`Perfil de voz não encontrado: ${id}`)
     return entry
   })
   ipcMain.handle(IPC.voiceGptSoVitsStatus, async () => getGptSoVitsStatus())
@@ -131,7 +132,7 @@ app.whenReady().then(async () => {
   createWindow()
 
   // Load the LLM in the background so the window can show immediately.
-  broadcastStatus('Carregando o cerebro da Lotus...')
+  broadcastStatus('Carregando o cérebro da Lotus...')
   const res = await initLlm()
   broadcastStatus(res.message)
 

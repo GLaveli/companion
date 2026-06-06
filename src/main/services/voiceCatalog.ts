@@ -25,7 +25,7 @@ export const CURATED_VOICES: CuratedVoiceDef[] = [
       textLang: 'en',
       speedFactor: 1.02,
       description:
-        'Preview GPT-SoVITS: tom jovem estilo anime falando pt-BR. Teste antes de tornar a voz padrao da Hiyori.'
+        'Preview GPT-SoVITS: tom jovem estilo anime falando pt-BR. Teste antes de tornar a voz padrão da Hiyori.'
     },
     refRelative: 'hiyori-preview/ref.wav'
   }

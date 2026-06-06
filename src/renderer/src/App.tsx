@@ -108,9 +108,9 @@ export default function App(): React.JSX.Element {
           type="button"
           className={`layout-toggle ${layoutOpen ? 'active' : ''}`}
           onClick={() => setLayoutOpen((v) => !v)}
-          title="Ajustar posicao do avatar"
+          title="Ajustar posição do avatar"
         >
-          Posicao
+          Posição
         </button>
         <AvatarLayoutControls open={layoutOpen} onClose={() => setLayoutOpen(false)} />
       </div>
@@ -146,10 +146,10 @@ export default function App(): React.JSX.Element {
         <div className="messages" ref={listRef}>
           {messages.length === 0 && (
             <div className="hint">
-              Diga ola para a Lotus! Use o microfone ou escreva uma mensagem abaixo.
+              Óii! Manda um oi pra Lotus — escreve aqui embaixo ou usa o microfone.
               <br />
               <br />
-              Avatar Live2D com animacao de corpo. Escolha um modelo na galeria ou aponte para um
+              Avatar Live2D com animação de corpo. Escolha um modelo na galeria ou aponte para um
               arquivo <code>.model3.json</code> seu.
             </div>
           )}
@@ -172,7 +172,7 @@ export default function App(): React.JSX.Element {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Escreva para a Lotus..."
+            placeholder="Fala com a Lotus..."
             disabled={phase === 'thinking'}
           />
           <button type="submit" disabled={!input.trim() || phase === 'thinking'}>

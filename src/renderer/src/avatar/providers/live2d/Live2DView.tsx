@@ -18,7 +18,7 @@ function waitForCubismCore(timeoutMs = 8000): Promise<void> {
         return
       }
       if (performance.now() - start > timeoutMs) {
-        reject(new Error('Live2D Cubism Core nao carregou. Rode npm run setup:live2d'))
+        reject(new Error('Live2D Cubism Core não carregou. Rode npm run setup:live2d'))
         return
       }
       requestAnimationFrame(tick)

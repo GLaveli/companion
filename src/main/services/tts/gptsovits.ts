@@ -22,7 +22,7 @@ export async function getGptSoVitsStatus(
     ).catch(() => null)
 
     if (!ping) {
-      return { online: false, host, port, message: 'Servidor GPT-SoVITS nao encontrado.' }
+      return { online: false, host, port, message: 'Servidor GPT-SoVITS não encontrado.' }
     }
     // 400 = server is up but params invalid (expected without real ref audio)
     if (ping.status === 400 || ping.ok) {

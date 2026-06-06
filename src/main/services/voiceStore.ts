@@ -14,7 +14,7 @@ const BUILTIN_PROFILES: VoiceProfile[] = [
     name: 'Lotus (natural)',
     engine: 'edge',
     edgeVoice: 'pt-BR-FranciscaNeural',
-    description: 'Voz feminina brasileira via Edge TTS. Fallback quando GPT-SoVITS esta offline.'
+    description: 'Voz feminina brasileira via Edge TTS. Fallback quando GPT-SoVITS está offline.'
   }
 ]
 
@@ -131,7 +131,7 @@ export async function getActiveVoiceProfile(): Promise<VoiceProfile> {
 export async function setActiveVoiceProfile(id: string): Promise<VoiceProfile> {
   const state = await loadState()
   const profile = state.profiles.find((p) => p.id === id)
-  if (!profile) throw new Error(`Perfil de voz nao encontrado: ${id}`)
+  if (!profile) throw new Error(`Perfil de voz não encontrado: ${id}`)
   state.activeId = id
   await saveState(state)
   return profile
@@ -168,7 +168,7 @@ export async function addClonedVoiceProfile(input: VoiceProfileInput): Promise<V
 
 export async function removeVoiceProfile(id: string): Promise<void> {
   if (isReservedId(id)) {
-    throw new Error('Nao e possivel remover perfis embutidos.')
+    throw new Error('Não é possível remover perfis embutidos.')
   }
   const state = await loadState()
   state.profiles = state.profiles.filter((p) => p.id !== id)

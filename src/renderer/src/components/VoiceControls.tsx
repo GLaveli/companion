@@ -3,7 +3,7 @@ import { playWithAnalyser, speakWithWebSpeech } from '../audio/player'
 import type { GptSoVitsStatus, VoiceListEntry } from '../../../shared/types'
 import { VoiceEdgeTunePanel } from './VoiceEdgeTunePanel'
 
-const PREVIEW_LINE = 'Oi! Eu sou a Lotus, sua companheira virtual. Que bom falar com voce!'
+import { VOICE_PREVIEW_LINE } from '../../../shared/voiceText'
 
 export function VoiceControls({
   open,
@@ -52,12 +52,12 @@ export function VoiceControls({
       const tts =
         typeof window.companion.previewVoice === 'function'
           ? await window.companion.previewVoice()
-          : await window.companion.speak(PREVIEW_LINE, 'happy')
+          : await window.companion.speak(VOICE_PREVIEW_LINE, 'happy')
       if (tts.audioUrl && !tts.useWebSpeechFallback) {
         const playback = await playWithAnalyser(tts.audioUrl)
         await playback.done
       } else {
-        await speakWithWebSpeech(PREVIEW_LINE)
+        await speakWithWebSpeech(VOICE_PREVIEW_LINE)
       }
     } catch (err) {
       setError((err as Error).message)
@@ -78,7 +78,7 @@ export function VoiceControls({
       </header>
 
       <p className="voice-note">
-        Padrao do sistema: <em>Lotus (natural)</em>. Teste <em>Hiyori (preview anime)</em> com
+        Padrão do sistema: <em>Lotus (natural)</em>. Teste <em>Hiyori (preview anime)</em> com
         GPT-SoVITS antes de definir como voz fixa dela.
       </p>
 

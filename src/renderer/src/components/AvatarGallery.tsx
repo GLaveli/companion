@@ -56,7 +56,7 @@ export function AvatarGallery({
         {error && <p className="gallery-error">{error}</p>}
 
         <p className="gallery-note">
-          Modelos com animacao de corpo (idle, gestos). Para modelos externos, baixe a pasta
+          Modelos com animação de corpo (idle, gestos). Para modelos externos, baixe a pasta
           completa e use &quot;Arquivo local&quot; apontando para o <code>.model3.json</code>.
         </p>
 

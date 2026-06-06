@@ -11,7 +11,7 @@ const model = await llama.loadModel({ modelPath })
 const context = await model.createContext()
 const session = new LlamaChatSession({
   contextSequence: context.getSequence(),
-  systemPrompt: 'Voce e a Lotus, uma companheira virtual que fala portugues do Brasil. Seja breve.'
+  systemPrompt: 'Você é a Lotus, uma garota animada que fala português do Brasil. Seja breve e leve.'
 })
 
 console.log('Perguntando...')

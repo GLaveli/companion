@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { playWithAnalyser, speakWithWebSpeech } from '../audio/player'
 import type { EdgeVoiceSettings } from '../../../shared/types'
 
-const PREVIEW_LINE = 'Oi! Eu sou a Lotus, sua companheira virtual. Que bom falar com voce!'
+import { VOICE_PREVIEW_LINE } from '../../../shared/voiceText'
 
 const EDGE_VOICES = [
   { id: 'pt-BR-FranciscaNeural', label: 'Francisca (suave)' },
@@ -70,12 +70,12 @@ export function VoiceEdgeTunePanel({
       const preview =
         typeof window.companion.previewEdgeVoice === 'function'
           ? await window.companion.previewEdgeVoice(profileId)
-          : await window.companion.speak(PREVIEW_LINE, 'happy')
+          : await window.companion.speak(VOICE_PREVIEW_LINE, 'happy')
       if (preview.audioUrl && !preview.useWebSpeechFallback) {
         const playback = await playWithAnalyser(preview.audioUrl)
         await playback.done
       } else {
-        await speakWithWebSpeech(PREVIEW_LINE)
+        await speakWithWebSpeech(VOICE_PREVIEW_LINE)
       }
     } catch (err) {
       setError((err as Error).message)
@@ -93,7 +93,7 @@ export function VoiceEdgeTunePanel({
         </button>
       </header>
 
-      <p className="voice-note">Tom, velocidade e volume base (Edge TTS). Emocao da conversa ainda modula a fala.</p>
+      <p className="voice-note">Tom, velocidade e volume base (Edge TTS). Emoção da conversa ainda modula a fala.</p>
 
       <label className="voice-tune-row">
         <span>Tom (pitch)</span>
@@ -157,7 +157,7 @@ export function VoiceEdgeTunePanel({
           Ouvir teste
         </button>
         <button type="button" className="voice-refresh" disabled={busy} onClick={onReset}>
-          Restaurar padrao
+          Restaurar padrão
         </button>
       </div>
 

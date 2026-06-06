@@ -1,4 +1,5 @@
 import type { Emotion, TtsResult } from '../../../shared/types'
+import { VOICE_PREVIEW_LINE } from '../../../shared/voiceText'
 import { getActiveVoiceProfile, listVoiceProfiles } from '../voiceStore'
 import { getEdgeVoiceSettings } from '../edgeVoiceSettings'
 import { speakWithEdge } from './edge'
@@ -51,9 +52,6 @@ export async function speak(text: string, options: SpeakOptions = {}): Promise<T
 
 export { getGptSoVitsStatus } from './gptsovits'
 
-const EDGE_PREVIEW_LINE =
-  'Oi! Eu sou a Lotus, sua companheira virtual. Que bom falar com voce!'
-
 export async function previewEdgeVoice(profileId: string): Promise<TtsResult> {
   const profiles = await listVoiceProfiles()
   const profile = profiles.find((p) => p.id === profileId && p.engine === 'edge')
@@ -61,7 +59,7 @@ export async function previewEdgeVoice(profileId: string): Promise<TtsResult> {
     return { audioUrl: '', engine: 'edge', useWebSpeechFallback: true }
   }
   const settings = await getEdgeVoiceSettings(profileId)
-  return speakWithEdge(EDGE_PREVIEW_LINE, {
+  return speakWithEdge(VOICE_PREVIEW_LINE, {
     emotion: 'happy',
     voice: settings.edgeVoice ?? profile.edgeVoice,
     settings

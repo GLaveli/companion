@@ -23,14 +23,14 @@ export function AvatarLayoutControls({
   return (
     <div className="layout-controls" onClick={(e) => e.stopPropagation()}>
       <header className="layout-controls-header">
-        <strong>Posicao do avatar</strong>
+        <strong>Posição do avatar</strong>
         <button type="button" className="layout-close" onClick={onClose} title="Fechar">
           ✕
         </button>
       </header>
 
       <p className="layout-note">
-        Vertical acima de 100% empurra o corpo para cima (combine com zoom alto para enquadrar so o
+        Vertical acima de 100% empurra o corpo para cima (combine com zoom alto para enquadrar só o
         busto).
       </p>
 
@@ -99,7 +99,7 @@ export function AvatarLayoutControls({
 
       <div className="layout-actions">
         <button type="button" className="layout-reset" onClick={resetLayout}>
-          Restaurar padrao
+          Restaurar padrão
         </button>
         <span className="layout-hint">Salva automaticamente</span>
       </div>
