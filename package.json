@@ -1,0 +1,46 @@
+{
+  "name": "project-companion",
+  "version": "0.1.0",
+  "description": "Web Companion 3D com IA local: avatar VRM que ouve, pensa e responde por voz",
+  "main": "./out/main/index.js",
+  "author": "ReDLotuS",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "setup:models": "node scripts/setup-models.mjs",
+    "dist": "electron-vite build && electron-builder",
+    "dist:win": "electron-vite build && electron-builder --win",
+    "dist:mac": "electron-vite build && electron-builder --mac"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^42.3.3",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^5.0.0",
+    "typescript": "^6.0.3",
+    "vite": "^7.3.5"
+  },
+  "dependencies": {
+    "@pixiv/three-vrm": "^3.5.3",
+    "@pixiv/three-vrm-animation": "^3.5.3",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
+    "duck-duck-scrape": "^2.2.7",
+    "msedge-tts": "^2.0.5",
+    "node-llama-cpp": "^3.18.1",
+    "nodejs-whisper": "^0.3.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "three": "^0.184.0",
+    "wawa-lipsync": "^0.0.2",
+    "zustand": "^5.0.14"
+  }
+}

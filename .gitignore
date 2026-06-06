@@ -1,0 +1,14 @@
+node_modules/
+out/
+dist/
+*.tsbuildinfo
+.DS_Store
+*.log
+
+# Large AI assets
+models/llm/*
+models/whisper/*
+!models/README.md
+
+# Avatar binaries
+src/renderer/public/*.vrm
