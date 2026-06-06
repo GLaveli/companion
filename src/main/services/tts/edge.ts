@@ -27,11 +27,19 @@ export async function speakWithEdge(
     const prosody = segments[0]?.prosody ?? fallback
     buffer = await synthesizeChunk(tts, clean, prosody)
   } else {
-    const parts: Buffer[] = []
-    for (const segment of segments) {
-      parts.push(await synthesizeChunk(tts, segment.text, segment.prosody))
-    }
+    tts.close()
+    const parts = await Promise.all(
+      segments.map((segment) => synthesizeWithVoice(voice, segment.text, segment.prosody))
+    )
     buffer = Buffer.concat(parts)
+    if (!buffer.length) {
+      return { audioUrl: '', engine: 'edge', useWebSpeechFallback: true, voice }
+    }
+    return {
+      audioUrl: `data:audio/mp3;base64,${buffer.toString('base64')}`,
+      engine: 'edge',
+      voice
+    }
   }
 
   tts.close()
@@ -54,6 +62,20 @@ function baseProsodyFromSettings(settings?: EdgeVoiceSettings): ProsodyOptions {
   const out: ProsodyOptions = { pitch: fmt(pitch), rate: fmt(rate) }
   if (volume !== 0) out.volume = fmt(volume)
   return out
+}
+
+async function synthesizeWithVoice(
+  voice: string,
+  text: string,
+  prosody: ProsodyOptions
+): Promise<Buffer> {
+  const tts = new MsEdgeTTS()
+  await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3)
+  try {
+    return await synthesizeChunk(tts, text, prosody)
+  } finally {
+    tts.close()
+  }
 }
 
 async function synthesizeChunk(

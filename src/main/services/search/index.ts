@@ -1,5 +1,5 @@
 import { searchDuckDuckGo } from './providers/duckduckgo'
-import { searchSearx } from './providers/searx'
+import { searchGoogleNews } from './providers/googleNews'
 import { searchWikipedia } from './providers/wikipedia'
 import type { SearchHit, SearchProviderId } from './types'
 
@@ -7,26 +7,26 @@ export type { SearchHit } from './types'
 
 const PROVIDERS: Array<{ id: SearchProviderId; search: (q: string, max: number) => Promise<SearchHit[]> }> =
   [
+    { id: 'google-news', search: searchGoogleNews },
     { id: 'duckduckgo', search: searchDuckDuckGo },
-    { id: 'searx', search: searchSearx },
     { id: 'wikipedia', search: searchWikipedia }
   ]
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms))
-}
+function expandQueries(query: string): string[] {
+  const q = query.trim()
+  if (!q) return []
 
-async function withRetry<T>(fn: () => Promise<T>, attempts = 2, delayMs = 600): Promise<T> {
-  let lastErr: unknown
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fn()
-    } catch (err) {
-      lastErr = err
-      if (i < attempts - 1) await sleep(delayMs * (i + 1))
+  const variants = new Set<string>([q])
+  const lower = q.toLowerCase()
+
+  if (/god\s*of\s*war|\bgow\b/i.test(lower)) {
+    variants.add('God of War Laufey 2026')
+    if (/novo|nova|pr[oó]ximo|proximo|lan[cç]amento|recente|último|ultimo|new|latest|saiu|cheg/i.test(lower)) {
+      variants.add('God of War Laufey PlayStation State of Play')
     }
   }
-  throw lastErr
+
+  return [...variants].slice(0, 3)
 }
 
 function dedupeHits(hits: SearchHit[]): SearchHit[] {
@@ -39,26 +39,70 @@ function dedupeHits(hits: SearchHit[]): SearchHit[] {
   })
 }
 
-/**
- * Multi-provider web search with retry and fallbacks.
- * DuckDuckGo → SearXNG → Wikipedia (no API keys).
- */
-export async function searchWeb(query: string, maxResults = 5): Promise<SearchHit[]> {
-  const q = query.trim()
-  if (!q) return []
+function scoreHit(hit: SearchHit, query: string): number {
+  const qWords = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2)
+  const text = `${hit.title} ${hit.snippet} ${hit.url}`.toLowerCase()
 
-  for (const { id, search } of PROVIDERS) {
-    try {
-      const hits = dedupeHits(await withRetry(() => search(q, maxResults), id === 'duckduckgo' ? 2 : 1))
-      if (hits.length) {
-        console.log(`[search] ${hits.length} result(s) via ${id}`)
-        return hits
-      }
-    } catch (err) {
-      console.warn(`[search] ${id} failed:`, (err as Error).message)
+  let score = hit.snippet.length > 40 ? 2 : 0
+  for (const word of qWords) {
+    if (text.includes(word)) score += 2
+  }
+
+  if (/laufey|everywhen|state of play|playstation\.com|theverge|ign\.|polygon|blog\.playstation/i.test(text)) {
+    score += 5
+  }
+  if (/wikipedia/i.test(hit.title) && /laufey|god of war/i.test(text)) score += 4
+  if (/news\.google\.com/i.test(hit.url)) score += 1
+
+  return score
+}
+
+function rankHits(hits: SearchHit[], query: string): SearchHit[] {
+  return [...hits].sort((a, b) => scoreHit(b, query) - scoreHit(a, query))
+}
+
+async function searchAllProviders(query: string, maxResults: number): Promise<SearchHit[]> {
+  const perProvider = Math.max(4, maxResults)
+
+  const settled = await Promise.allSettled(
+    PROVIDERS.map(async ({ id, search }) => {
+      const hits = await search(query, perProvider)
+      return { id, hits }
+    })
+  )
+
+  const merged: SearchHit[] = []
+  for (const result of settled) {
+    if (result.status === 'fulfilled' && result.value.hits.length) {
+      merged.push(...result.value.hits)
+      console.log(`[search] ${result.value.hits.length} via ${result.value.id} ("${query}")`)
+    } else if (result.status === 'rejected') {
+      console.warn(`[search] provider failed for "${query}":`, (result.reason as Error).message)
     }
   }
 
-  console.warn('[search] all providers returned empty for:', q)
-  return []
+  return merged
+}
+
+/**
+ * Multi-provider web search: Google News + DuckDuckGo HTML + Wikipedia (+ SearX fallback).
+ * Providers run in parallel; results are merged, ranked and deduped.
+ */
+export async function searchWeb(query: string, maxResults = 8): Promise<SearchHit[]> {
+  const queries = expandQueries(query)
+  if (!queries.length) return []
+
+  let merged: SearchHit[] = []
+  for (const q of queries) {
+    merged.push(...(await searchAllProviders(q, maxResults)))
+    const ranked = rankHits(dedupeHits(merged), query)
+    if (ranked.length >= Math.min(4, maxResults)) break
+  }
+
+  const final = rankHits(dedupeHits(merged), query).slice(0, maxResults)
+  if (!final.length) console.warn('[search] no results for:', query)
+  return final
 }

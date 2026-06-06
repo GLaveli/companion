@@ -4,7 +4,7 @@ export interface SearchHit {
   url: string
 }
 
-export type SearchProviderId = 'duckduckgo' | 'searx' | 'wikipedia'
+export type SearchProviderId = 'google-news' | 'duckduckgo' | 'wikipedia' | 'searx'
 
 export interface SearchProviderResult {
   provider: SearchProviderId

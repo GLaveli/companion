@@ -1,8 +1,20 @@
 import type { SearchHit } from '../types'
 
-type OpenSearchResponse = [string, string[], string[], string[]]
+type WikiSearchResponse = {
+  query?: { search?: Array<{ title: string; snippet: string; pageid: number }> }
+}
 
-const WIKI_LANGS = ['pt', 'en'] as const
+const WIKI_LANGS = ['en', 'pt'] as const
+
+function stripWiki(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&#039;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 export async function searchWikipedia(query: string, maxResults: number): Promise<SearchHit[]> {
   const hits: SearchHit[] = []
@@ -11,22 +23,24 @@ export async function searchWikipedia(query: string, maxResults: number): Promis
     if (hits.length >= maxResults) break
     try {
       const url = new URL(`https://${lang}.wikipedia.org/w/api.php`)
-      url.searchParams.set('action', 'opensearch')
-      url.searchParams.set('search', query)
-      url.searchParams.set('limit', String(maxResults))
-      url.searchParams.set('namespace', '0')
+      url.searchParams.set('action', 'query')
+      url.searchParams.set('list', 'search')
+      url.searchParams.set('srsearch', query)
+      url.searchParams.set('srlimit', String(maxResults))
       url.searchParams.set('format', 'json')
+      url.searchParams.set('utf8', '1')
 
       const res = await fetch(url, { signal: AbortSignal.timeout(8_000) })
       if (!res.ok) continue
 
-      const [, titles, descriptions, urls] = (await res.json()) as OpenSearchResponse
-      for (let i = 0; i < titles.length && hits.length < maxResults; i++) {
-        if (!titles[i] || !urls[i]) continue
+      const data = (await res.json()) as WikiSearchResponse
+      for (const item of data.query?.search ?? []) {
+        if (hits.length >= maxResults) break
+        const pageUrl = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(item.title.replace(/ /g, '_'))}`
         hits.push({
-          title: `${titles[i]} (Wikipedia ${lang.toUpperCase()})`,
-          snippet: descriptions[i] || 'Artigo da Wikipedia.',
-          url: urls[i]
+          title: `${item.title} (Wikipedia ${lang.toUpperCase()})`,
+          snippet: stripWiki(item.snippet),
+          url: pageUrl
         })
       }
     } catch {

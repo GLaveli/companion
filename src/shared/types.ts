@@ -13,6 +13,12 @@ export interface AssistantReply {
   emotion: Emotion
 }
 
+/** Whether the next reply should start with a short line while web research runs. */
+export interface ChatPlan {
+  needsResearch: boolean
+  preamble?: string
+}
+
 /** Status reported by the main process while models load. */
 export interface ModelStatus {
   llmReady: boolean
@@ -140,6 +146,8 @@ export interface VroidLink {
 export const IPC = {
   // LLM
   llmChat: 'llm:chat',
+  llmPlan: 'llm:plan',
+  llmResearch: 'llm:research',
   llmStatus: 'llm:status',
   llmReset: 'llm:reset',
   // STT

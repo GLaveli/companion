@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { IPC, type AvatarFile, type AvatarLayout, type EdgeVoiceSettings, type ModelStatus } from '../shared/types'
 import { VOICE_PREVIEW_LINE } from '../shared/voiceText'
-import { initLlm, chat, resetChat, isLlmReady } from './services/llm'
+import { initLlm, chat, chatPlan, chatResearch, resetChat, isLlmReady } from './services/llm'
 import { getGptSoVitsStatus, previewEdgeVoice, speak } from './services/tts'
 import { startGptSoVitsServer, stopGptSoVitsServer } from './services/gptsovitsProcess'
 import { listVoiceEntries, setActiveVoiceProfile } from './services/voiceStore'
@@ -75,6 +75,10 @@ function broadcastStatus(message: string): void {
 
 function registerIpc(): void {
   ipcMain.handle(IPC.llmChat, async (_e, text: string) => chat(text))
+  ipcMain.handle(IPC.llmPlan, async (_e, text: string) => chatPlan(text))
+  ipcMain.handle(IPC.llmResearch, async (_e, text: string, preamble: string) =>
+    chatResearch(text, preamble)
+  )
   ipcMain.handle(IPC.llmReset, async () => {
     await resetChat()
   })

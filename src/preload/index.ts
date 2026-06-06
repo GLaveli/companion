@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
   type AssistantReply,
+  type ChatPlan,
   type Emotion,
   type AvatarCollection,
   type AvatarFile,
@@ -18,6 +19,9 @@ import {
 
 const api = {
   chat: (text: string): Promise<AssistantReply> => ipcRenderer.invoke(IPC.llmChat, text),
+  chatPlan: (text: string): Promise<ChatPlan> => ipcRenderer.invoke(IPC.llmPlan, text),
+  chatResearch: (text: string, preamble: string): Promise<AssistantReply> =>
+    ipcRenderer.invoke(IPC.llmResearch, text, preamble),
   resetChat: (): Promise<void> => ipcRenderer.invoke(IPC.llmReset),
   getStatus: (): Promise<ModelStatus> => ipcRenderer.invoke(IPC.llmStatus),
   speak: (text: string, emotion?: Emotion, voice?: string): Promise<TtsResult> =>
