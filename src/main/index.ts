@@ -12,6 +12,7 @@ import { transcribe, isSttReady } from './services/stt'
 import { pickAvatar, loadSavedAvatar, saveAvatarSelection } from './services/avatar'
 import { loadAvatarLayout, saveAvatarLayout } from './services/avatarLayout'
 import { loadAvatarAnimation, saveAvatarAnimation } from './services/avatarAnimation'
+import { readSystemMetrics } from './services/systemMetrics'
 import {
   listCollections,
   listCollectionAvatars,
@@ -138,6 +139,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.avatarAnimationSave, async (_e, settings: AvatarAnimationSettings) =>
     saveAvatarAnimation(settings)
   )
+  ipcMain.handle(IPC.systemMetrics, async () => readSystemMetrics())
 }
 
 app.whenReady().then(async () => {

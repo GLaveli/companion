@@ -622,6 +622,9 @@ body,
   padding-bottom: 14px;
   margin-bottom: 2px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: visible;
+  position: relative;
+  z-index: 2;
 }
 
 .panel-header,
@@ -733,22 +736,15 @@ body,
 }
 
 .panel-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 92px;
+  column-gap: 8px;
+  row-gap: 4px;
+  align-items: baseline;
   padding: 8px 12px;
   border-radius: 12px;
   background: var(--panel-2);
   border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.panel-meta-line {
-  margin: 0;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
 }
 
 .panel-meta-label {
@@ -770,6 +766,67 @@ body,
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.panel-meta-stat {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  column-gap: 4px;
+  align-items: baseline;
+  width: 100%;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: help;
+  border-radius: 6px;
+  outline: none;
+}
+
+.panel-meta-stat-label {
+  color: var(--muted);
+  text-align: left;
+}
+
+.panel-meta-stat-label::after {
+  content: '·';
+  margin-left: 4px;
+  opacity: 0.45;
+}
+
+.panel-meta-stat-value {
+  color: var(--text);
+  text-align: right;
+}
+
+.panel-meta-stat-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  width: max-content;
+  max-width: min(240px, 70vw);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #1c1c2a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.panel-meta-stat:hover .panel-meta-stat-tip,
+.panel-meta-stat:focus-visible .panel-meta-stat-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .avatar-bar {

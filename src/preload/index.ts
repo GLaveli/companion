@@ -13,6 +13,7 @@ import {
   type EdgeVoiceSettings,
   type GptSoVitsStatus,
   type ModelStatus,
+  type SystemMetrics,
   type TtsResult,
   type VoiceListEntry,
   type VroidLink
@@ -58,6 +59,7 @@ const api = {
     ipcRenderer.invoke(IPC.avatarAnimationLoad),
   saveAvatarAnimation: (settings: AvatarAnimationSettings): Promise<void> =>
     ipcRenderer.invoke(IPC.avatarAnimationSave, settings),
+  getSystemMetrics: (): Promise<SystemMetrics> => ipcRenderer.invoke(IPC.systemMetrics),
   onStatus: (cb: (status: ModelStatus) => void): (() => void) => {
     const listener = (_e: unknown, status: ModelStatus): void => cb(status)
     ipcRenderer.on(IPC.onStatus, listener)

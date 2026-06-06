@@ -112,6 +112,15 @@ export interface AvatarAnimationSettings {
   gazeMode: AvatarGazeMode
 }
 
+/** CPU/RAM usage reported by the main process. */
+export interface SystemMetrics {
+  /** Whether values refer to Lotus processes or the whole machine. */
+  scope: 'app' | 'system'
+  cpuPercent: number
+  ramUsedMb: number
+  ramTotalMb: number | null
+}
+
 /** User-tuned Live2D stage framing (persisted in userData). */
 export interface AvatarLayout {
   /** Horizontal position as fraction of stage width (0..1). */
@@ -183,6 +192,7 @@ export const IPC = {
   avatarLayoutSave: 'avatar:layout:save',
   avatarAnimationLoad: 'avatar:animation:load',
   avatarAnimationSave: 'avatar:animation:save',
+  systemMetrics: 'system:metrics',
   // Status events (main -> renderer)
   onStatus: 'app:status'
 } as const

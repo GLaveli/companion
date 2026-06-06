@@ -11,7 +11,8 @@ import { getAvatarProvider } from './avatar/registry'
 import { useStore } from './store'
 import { useConversation } from './hooks/useConversation'
 import { loadActiveVoiceBarLabel } from './voiceLabel'
-import type { AvatarFile } from '../../shared/types'
+import { formatCpuPercent, formatRamUsage, metricsTooltip } from './systemMetricsLabel'
+import type { AvatarFile, SystemMetrics } from '../../shared/types'
 
 const PHASE_LABEL: Record<string, string> = {
   idle: 'Pronta para conversar',
@@ -55,6 +56,7 @@ export default function App(): React.JSX.Element {
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [avatarReady, setAvatarReady] = useState(false)
   const [voiceLabel, setVoiceLabel] = useState({ short: 'Lotus (natural) · Francisca', title: '' })
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const hydrateLayout = useAvatarLayout((s) => s.hydrate)
   const hydrateAnimation = useAvatarAnimation((s) => s.hydrate)
@@ -131,6 +133,27 @@ export default function App(): React.JSX.Element {
   }, [input, setChatTyping])
 
   useEffect(() => {
+    let alive = true
+
+    const refreshMetrics = async (): Promise<void> => {
+      try {
+        const metrics = await window.companion.getSystemMetrics()
+        if (alive) setSystemMetrics(metrics)
+      } catch {
+        /* ignore transient IPC errors */
+      }
+    }
+
+    void refreshMetrics()
+    const timer = window.setInterval(() => void refreshMetrics(), 2000)
+
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  useEffect(() => {
     const el = listRef.current
     if (!el) return
     const scrollToBottom = (): void => {
@@ -153,6 +176,10 @@ export default function App(): React.JSX.Element {
     () => formatLlmStatus(llmReady, statusMessage),
     [llmReady, statusMessage]
   )
+  const cpuText = systemMetrics ? formatCpuPercent(systemMetrics.cpuPercent) : '—'
+  const ramText = systemMetrics ? formatRamUsage(systemMetrics) : '—'
+  const cpuTip = metricsTooltip('cpu', systemMetrics)
+  const ramTip = metricsTooltip('ram', systemMetrics)
 
   return (
     <div className="app">
@@ -195,19 +222,26 @@ export default function App(): React.JSX.Element {
           </header>
           {llmStatus.detail ? <p className="status">{llmStatus.detail}</p> : null}
 
-          <div className="panel-meta" role="group" aria-label="Avatar e voz ativos">
-            <p className="panel-meta-line">
-              <span className="panel-meta-label">Avatar</span>
-              <span className="panel-meta-value" title={avatarName ?? provider.defaultName}>
-                {avatarName ?? provider.defaultName}
-              </span>
-            </p>
-            <p className="panel-meta-line">
-              <span className="panel-meta-label">Voz</span>
-              <span className="panel-meta-value" title={voiceLabel.title || voiceLabel.short}>
-                {voiceLabel.short}
-              </span>
-            </p>
+          <div className="panel-meta" role="group" aria-label="Avatar, voz e uso de recursos">
+            <span className="panel-meta-label">Avatar</span>
+            <span className="panel-meta-value" title={avatarName ?? provider.defaultName}>
+              {avatarName ?? provider.defaultName}
+            </span>
+            <span className="panel-meta-stat" tabIndex={0}>
+              <span className="panel-meta-stat-label">CPU</span>
+              <span className="panel-meta-stat-value">{cpuText}</span>
+              <span className="panel-meta-stat-tip">{cpuTip}</span>
+            </span>
+
+            <span className="panel-meta-label">Voz</span>
+            <span className="panel-meta-value" title={voiceLabel.title || voiceLabel.short}>
+              {voiceLabel.short}
+            </span>
+            <span className="panel-meta-stat" tabIndex={0}>
+              <span className="panel-meta-stat-label">RAM</span>
+              <span className="panel-meta-stat-value">{ramText}</span>
+              <span className="panel-meta-stat-tip">{ramTip}</span>
+            </span>
           </div>
         </div>
 
