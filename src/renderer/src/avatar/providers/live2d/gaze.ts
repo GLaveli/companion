@@ -1,6 +1,11 @@
 import type { AvatarLayout } from '../../../../../shared/types'
+import { getFaceGazeTarget } from '../../faceTracking'
 import { useAvatarAnimation } from '../../animationStore'
+import { NEUTRAL_GAZE, type GazeTarget } from '../../gazeTypes'
 import type { Live2DBaseSize } from './config'
+
+export type { GazeTarget } from '../../gazeTypes'
+export { NEUTRAL_GAZE } from '../../gazeTypes'
 
 export interface GazeContext {
   stageRect: DOMRect
@@ -8,20 +13,6 @@ export interface GazeContext {
   base: Live2DBaseSize
   stageW: number
   stageH: number
-}
-
-export interface GazeTarget {
-  eyeX: number
-  eyeY: number
-  angleX?: number
-  angleY?: number
-}
-
-export const NEUTRAL_GAZE: GazeTarget = {
-  eyeX: 0,
-  eyeY: 0,
-  angleX: 0,
-  angleY: 0
 }
 
 const CHAT_GAZE: GazeTarget = {
@@ -65,7 +56,6 @@ function gazeFromMouse(ctx: GazeContext): GazeTarget {
   const rangeY = Math.max(window.innerHeight, ctx.stageH) * 0.14
   const dx = (mouseClient.x - face.x) / rangeX
   const rawDy = (mouseClient.y - face.y) / rangeY
-  // Cubism: ParamEyeBallY +1 = up; screen Y grows downward.
   const eyeX = clamp(dx, -1, 1)
   const eyeY = clamp(-rawDy, -1, 1)
   return {
@@ -89,6 +79,10 @@ export function resolveGazeTarget(): GazeTarget | null {
   if (gazeMode === 'mouse') {
     if (!mouseClient.active || !gazeContext) return null
     return gazeFromMouse(gazeContext)
+  }
+
+  if (gazeMode === 'camera') {
+    return getFaceGazeTarget()
   }
 
   return null

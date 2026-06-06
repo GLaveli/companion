@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { useAvatarAnimation } from '../avatar/animationStore'
+import { getFaceTrackerStatus, resetFaceTrackerError } from '../avatar/faceTracking'
 import type { AvatarGazeMode } from '../../../shared/types'
 
 function GazeSwitch({
@@ -40,6 +42,28 @@ export function AnimationControls({
 }): React.JSX.Element | null {
   const gazeMode = useAvatarAnimation((s) => s.gazeMode)
   const setGazeMode = useAvatarAnimation((s) => s.setGazeMode)
+  const [cameraStatus, setCameraStatus] = useState('')
+
+  useEffect(() => {
+    if (!open || gazeMode !== 'camera') {
+      setCameraStatus('')
+      return
+    }
+
+    const tick = (): void => {
+      const status = getFaceTrackerStatus()
+      setCameraStatus(status.message)
+    }
+
+    tick()
+    const timer = window.setInterval(tick, 400)
+    return () => window.clearInterval(timer)
+  }, [open, gazeMode])
+
+  const onGazeChange = (mode: AvatarGazeMode): void => {
+    resetFaceTrackerError()
+    setGazeMode(mode)
+  }
 
   if (!open) return null
 
@@ -63,15 +87,25 @@ export function AnimationControls({
             label="Seguir o mouse"
             mode="mouse"
             activeMode={gazeMode}
-            onChange={setGazeMode}
+            onChange={onGazeChange}
           />
           <GazeSwitch
             label="Olhar para o chat"
             mode="chat"
             activeMode={gazeMode}
-            onChange={setGazeMode}
+            onChange={onGazeChange}
+          />
+          <GazeSwitch
+            label="Olhar para você (usar câmera)"
+            mode="camera"
+            activeMode={gazeMode}
+            onChange={onGazeChange}
           />
         </div>
+
+        {gazeMode === 'camera' && cameraStatus ? (
+          <p className="anim-camera-status">{cameraStatus}</p>
+        ) : null}
 
         <p className="anim-hint">As preferências são salvas automaticamente.</p>
       </div>

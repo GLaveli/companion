@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useStore } from '../store'
+import { useFaceTracker } from './faceTracking/useFaceTracker'
 import { getAvatarProvider } from './registry'
 
 /**
@@ -13,6 +14,8 @@ export function AvatarStage(): React.JSX.Element {
 
   const provider = useMemo(() => getAvatarProvider(avatarKind), [avatarKind])
   const modelUrl = avatarUrl ?? provider.defaultModelUrl
+
+  useFaceTracker()
 
   const handleError = useCallback(() => {
     if (modelUrl === provider.defaultModelUrl) {

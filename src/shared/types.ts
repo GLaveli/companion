@@ -105,7 +105,7 @@ export interface AvatarFile {
 }
 
 /** Live2D eye-gaze behaviour (mutually exclusive modes). */
-export type AvatarGazeMode = 'none' | 'mouse' | 'chat'
+export type AvatarGazeMode = 'none' | 'mouse' | 'chat' | 'camera'
 
 /** Persisted Live2D animation toggles. */
 export interface AvatarAnimationSettings {

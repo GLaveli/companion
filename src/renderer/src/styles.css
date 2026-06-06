@@ -1045,6 +1045,14 @@ body,
   line-height: 1.5;
 }
 
+.anim-camera-status {
+  margin: 0;
+  font-size: 11px;
+  color: #8fd9a8;
+  line-height: 1.45;
+  padding: 0 2px;
+}
+
 .anim-switch-list {
   display: flex;
   flex-direction: column;

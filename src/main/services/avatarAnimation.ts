@@ -8,7 +8,7 @@ export const DEFAULT_AVATAR_ANIMATION: AvatarAnimationSettings = {
   gazeMode: 'none'
 }
 
-const VALID_GAZE: AvatarGazeMode[] = ['none', 'mouse', 'chat']
+const VALID_GAZE: AvatarGazeMode[] = ['none', 'mouse', 'chat', 'camera']
 
 function configPath(): string {
   return join(app.getPath('userData'), 'avatar-animation.json')

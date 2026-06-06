@@ -53,9 +53,9 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // Auto-grant microphone permission for our own renderer.
+  // Auto-grant camera/microphone for our own renderer.
   mainWindow.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permission === 'media')
+    callback(permission === 'media' || permission === 'camera')
   })
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
