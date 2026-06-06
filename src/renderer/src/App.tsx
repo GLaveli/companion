@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AvatarGallery } from './components/AvatarGallery'
 import { AvatarLayoutControls } from './components/AvatarLayoutControls'
+import { VoiceControls } from './components/VoiceControls'
 import { AvatarStage } from './avatar/AvatarStage'
 import { flushAvatarLayoutSave, useAvatarLayout } from './avatar/layoutStore'
 import { getAvatarProvider } from './avatar/registry'
@@ -21,6 +22,7 @@ export default function App(): React.JSX.Element {
   const [input, setInput] = useState('')
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
+  const [voiceOpen, setVoiceOpen] = useState(false)
   const [avatarReady, setAvatarReady] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const hydrateLayout = useAvatarLayout((s) => s.hydrate)
@@ -78,7 +80,13 @@ export default function App(): React.JSX.Element {
   }
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
+    const el = listRef.current
+    if (!el) return
+    const scrollToBottom = (): void => {
+      el.scrollTop = el.scrollHeight
+    }
+    scrollToBottom()
+    requestAnimationFrame(scrollToBottom)
   }, [messages])
 
   const onSubmit = (e: React.FormEvent): void => {
@@ -121,10 +129,19 @@ export default function App(): React.JSX.Element {
           <button type="button" className="avatar-btn" onClick={() => void onPickAvatar()}>
             Arquivo local
           </button>
+          <button
+            type="button"
+            className={`avatar-btn ${voiceOpen ? 'active' : ''}`}
+            onClick={() => setVoiceOpen((v) => !v)}
+          >
+            Voz
+          </button>
           <span className="avatar-name" title={avatarName ?? ''}>
             {avatarName ?? provider.defaultName}
           </span>
         </div>
+
+        <VoiceControls open={voiceOpen} onClose={() => setVoiceOpen(false)} />
 
         <div className="messages" ref={listRef}>
           {messages.length === 0 && (

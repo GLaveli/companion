@@ -15,6 +15,10 @@
     "setup:models": "node scripts/setup-models.mjs",
     "setup:animations": "node scripts/setup-animations.mjs",
     "setup:live2d": "node scripts/setup-live2d.mjs",
+    "setup:voice": "node scripts/generate-voice-ref.mjs && bash scripts/install-gptsovits.sh",
+    "setup:voice-ref": "node scripts/generate-voice-ref.mjs",
+    "setup:gptsovits": "bash scripts/install-gptsovits.sh",
+    "gptsovits:start": "cd vendor/GPT-SoVITS && .venv/bin/python api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer.yaml",
     "dist": "electron-vite build && electron-builder",
     "dist:win": "electron-vite build && electron-builder --win",
     "dist:mac": "electron-vite build && electron-builder --mac"

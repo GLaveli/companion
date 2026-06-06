@@ -20,14 +20,68 @@ export interface ModelStatus {
   message: string
 }
 
+/** TTS engine identifier. */
+export type TtsEngine = 'edge' | 'gptsovits' | 'webspeech'
+
+/** Saved voice profile — Edge preset or GPT-SoVITS clone. */
+export interface VoiceProfile {
+  id: string
+  name: string
+  engine: TtsEngine
+  /** Edge neural voice id (engine === 'edge'). */
+  edgeVoice?: string
+  /** Absolute path to reference WAV for GPT-SoVITS. */
+  refAudioPath?: string
+  /** Transcript of the reference clip. */
+  promptText?: string
+  /** Language of the reference clip: ja, en, zh, ko, etc. */
+  promptLang?: string
+  /** Language of text to synthesise (usually pt). */
+  textLang?: string
+  speedFactor?: number
+  gptWeightsPath?: string
+  sovitsWeightsPath?: string
+  description?: string
+}
+
+/** Input for creating a cloned GPT-SoVITS profile. */
+export type VoiceProfileInput = Omit<VoiceProfile, 'id' | 'engine'> & {
+  id?: string
+  engine?: never
+}
+
 /** Result of a text-to-speech request. */
 export interface TtsResult {
   /** Absolute file:// URL or base64 data URL of the generated audio. */
   audioUrl: string
-  engine: 'edge' | 'webspeech' | 'piper'
+  engine: TtsEngine
   /** When true the renderer should fall back to the Web Speech API. */
   useWebSpeechFallback?: boolean
   voice?: string
+}
+
+export interface GptSoVitsStatus {
+  online: boolean
+  host: string
+  port: number
+  message: string
+}
+
+export interface VoiceListEntry extends VoiceProfile {
+  available: boolean
+  active: boolean
+}
+
+/** User-tuned Edge TTS parameters (persisted per voice profile id). */
+export interface EdgeVoiceSettings {
+  /** Base pitch offset in percent points, e.g. 10 = +10%. */
+  pitch: number
+  /** Base speech rate in percent points, e.g. 4 = +4%. */
+  rate: number
+  /** Volume offset in percent points. */
+  volume: number
+  /** Edge neural voice id override. */
+  edgeVoice: string
 }
 
 export interface TranscriptionResult {
@@ -86,6 +140,14 @@ export const IPC = {
   sttTranscribe: 'stt:transcribe',
   // TTS
   ttsSpeak: 'tts:speak',
+  voiceList: 'voice:list',
+  voiceGetActive: 'voice:get-active',
+  voiceSetActive: 'voice:set-active',
+  voiceGptSoVitsStatus: 'voice:gptsovits-status',
+  voicePreview: 'voice:preview',
+  voiceGetEdgeSettings: 'voice:edge-settings:get',
+  voiceSaveEdgeSettings: 'voice:edge-settings:save',
+  voicePreviewEdge: 'voice:preview-edge',
   // Avatar
   avatarPick: 'avatar:pick',
   avatarLoad: 'avatar:load',

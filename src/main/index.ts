@@ -1,9 +1,12 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { IPC, type AvatarLayout, type ModelStatus } from '../shared/types'
+import { IPC, type AvatarLayout, type EdgeVoiceSettings, type ModelStatus } from '../shared/types'
 import { initLlm, chat, resetChat, isLlmReady } from './services/llm'
-import { speak } from './services/tts'
+import { getGptSoVitsStatus, previewEdgeVoice, speak } from './services/tts'
+import { startGptSoVitsServer, stopGptSoVitsServer } from './services/gptsovitsProcess'
+import { listVoiceEntries, setActiveVoiceProfile } from './services/voiceStore'
+import { getEdgeVoiceSettings, saveEdgeVoiceSettings } from './services/edgeVoiceSettings'
 import { transcribe, isSttReady } from './services/stt'
 import { pickAvatar, loadSavedAvatar } from './services/avatar'
 import { loadAvatarLayout, saveAvatarLayout } from './services/avatarLayout'
@@ -79,7 +82,32 @@ function registerIpc(): void {
     sttReady: isSttReady(),
     message: ''
   }))
-  ipcMain.handle(IPC.ttsSpeak, async (_e, text: string, voice?: string) => speak(text, voice))
+  ipcMain.handle(IPC.ttsSpeak, async (_e, text: string, emotion, voice) => speak(text, { emotion, voice }))
+  ipcMain.handle(IPC.voiceList, async () => listVoiceEntries())
+  ipcMain.handle(IPC.voicePreview, async () =>
+    speak('Oi! Eu sou a Lotus, sua companheira virtual. Que bom falar com voce!', {
+      emotion: 'happy'
+    })
+  )
+  ipcMain.handle(IPC.voiceGetActive, async () => {
+    const entries = await listVoiceEntries()
+    return entries.find((e) => e.active) ?? entries[0]
+  })
+  ipcMain.handle(IPC.voiceSetActive, async (_e, id: string) => {
+    await setActiveVoiceProfile(id)
+    const entries = await listVoiceEntries()
+    const entry = entries.find((e) => e.id === id)
+    if (!entry) throw new Error(`Perfil de voz nao encontrado: ${id}`)
+    return entry
+  })
+  ipcMain.handle(IPC.voiceGptSoVitsStatus, async () => getGptSoVitsStatus())
+  ipcMain.handle(IPC.voiceGetEdgeSettings, async (_e, profileId: string) =>
+    getEdgeVoiceSettings(profileId)
+  )
+  ipcMain.handle(IPC.voiceSaveEdgeSettings, async (_e, profileId: string, settings: EdgeVoiceSettings) =>
+    saveEdgeVoiceSettings(profileId, settings)
+  )
+  ipcMain.handle(IPC.voicePreviewEdge, async (_e, profileId: string) => previewEdgeVoice(profileId))
   ipcMain.handle(IPC.sttTranscribe, async (_e, wav: Uint8Array) => ({ text: await transcribe(wav) }))
   ipcMain.handle(IPC.avatarPick, async () => pickAvatar(mainWindow))
   ipcMain.handle(IPC.avatarLoad, async () => loadSavedAvatar())
@@ -107,11 +135,18 @@ app.whenReady().then(async () => {
   const res = await initLlm()
   broadcastStatus(res.message)
 
+  void startGptSoVitsServer().then((ok) => {
+    if (ok) console.log('[app] GPT-SoVITS voice server started')
+  })
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
 app.on('window-all-closed', () => {
+  stopGptSoVitsServer()
   if (process.platform !== 'darwin') app.quit()
 })
+
+app.on('before-quit', () => stopGptSoVitsServer())

@@ -11,11 +11,11 @@ export function useConversation(): {
   const recorder = useRef<MicRecorder | null>(null)
   const { setPhase, setEmotion, addMessage, setSpeaking } = useStore.getState()
 
-  const speak = useCallback(async (text: string) => {
+  const speak = useCallback(async (text: string, emotion = useStore.getState().emotion) => {
     setPhase('speaking')
     setSpeaking(true)
     try {
-      const tts = await window.companion.speak(text)
+      const tts = await window.companion.speak(text, emotion)
       if (tts.audioUrl && !tts.useWebSpeechFallback) {
         const playback = await playWithAnalyser(tts.audioUrl)
         await playback.done
@@ -42,7 +42,7 @@ export function useConversation(): {
         const reply = await window.companion.chat(trimmed)
         addMessage({ role: 'assistant', content: reply.text })
         setEmotion(reply.emotion)
-        await speak(reply.text)
+        await speak(reply.text, reply.emotion)
       } catch (err) {
         console.error('[conversation] chat failed:', err)
         setPhase('idle')

@@ -9,6 +9,8 @@ dist/
 models/llm/*
 models/whisper/*
 !models/README.md
+!models/voices/**
+vendor/
 
 # Avatar binaries
 src/renderer/public/*.vrm

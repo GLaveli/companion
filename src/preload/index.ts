@@ -2,12 +2,16 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
   type AssistantReply,
+  type Emotion,
   type AvatarCollection,
   type AvatarFile,
   type AvatarLayout,
   type CatalogAvatar,
+  type EdgeVoiceSettings,
+  type GptSoVitsStatus,
   type ModelStatus,
   type TtsResult,
+  type VoiceListEntry,
   type VroidLink
 } from '../shared/types'
 
@@ -15,8 +19,19 @@ const api = {
   chat: (text: string): Promise<AssistantReply> => ipcRenderer.invoke(IPC.llmChat, text),
   resetChat: (): Promise<void> => ipcRenderer.invoke(IPC.llmReset),
   getStatus: (): Promise<ModelStatus> => ipcRenderer.invoke(IPC.llmStatus),
-  speak: (text: string, voice?: string): Promise<TtsResult> =>
-    ipcRenderer.invoke(IPC.ttsSpeak, text, voice),
+  speak: (text: string, emotion?: Emotion, voice?: string): Promise<TtsResult> =>
+    ipcRenderer.invoke(IPC.ttsSpeak, text, emotion, voice),
+  listVoices: (): Promise<VoiceListEntry[]> => ipcRenderer.invoke(IPC.voiceList),
+  getActiveVoice: (): Promise<VoiceListEntry> => ipcRenderer.invoke(IPC.voiceGetActive),
+  setActiveVoice: (id: string): Promise<VoiceListEntry> => ipcRenderer.invoke(IPC.voiceSetActive, id),
+  getGptSoVitsStatus: (): Promise<GptSoVitsStatus> => ipcRenderer.invoke(IPC.voiceGptSoVitsStatus),
+  previewVoice: (): Promise<TtsResult> => ipcRenderer.invoke(IPC.voicePreview),
+  getEdgeVoiceSettings: (profileId: string): Promise<EdgeVoiceSettings> =>
+    ipcRenderer.invoke(IPC.voiceGetEdgeSettings, profileId),
+  saveEdgeVoiceSettings: (profileId: string, settings: EdgeVoiceSettings): Promise<EdgeVoiceSettings> =>
+    ipcRenderer.invoke(IPC.voiceSaveEdgeSettings, profileId, settings),
+  previewEdgeVoice: (profileId: string): Promise<TtsResult> =>
+    ipcRenderer.invoke(IPC.voicePreviewEdge, profileId),
   transcribe: (wav: Uint8Array): Promise<{ text: string }> =>
     ipcRenderer.invoke(IPC.sttTranscribe, wav),
   pickAvatar: (): Promise<AvatarFile | null> => ipcRenderer.invoke(IPC.avatarPick),

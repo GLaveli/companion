@@ -1,0 +1,8 @@
+{
+  "id": "hiyori-preview",
+  "voice": "pt-BR-ThalitaNeural",
+  "promptText": "Oi! Hoje também vamos dar o nosso melhor juntos!",
+  "promptLang": "en",
+  "textLang": "en",
+  "note": "Referencia pt-BR tom jovem. promptLang/textLang en = proxy fonetico no GPT-SoVITS v2."
+}

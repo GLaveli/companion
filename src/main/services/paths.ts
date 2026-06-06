@@ -22,6 +22,10 @@ export function getWhisperDir(): string {
   return join(getModelsDir(), 'whisper')
 }
 
+export function getBundledVoicesDir(): string {
+  return join(getModelsDir(), 'voices')
+}
+
 /** Finds the first .gguf file inside models/llm, or null if none exists. */
 export function findLlmModel(): string | null {
   const dir = getLlmDir()
