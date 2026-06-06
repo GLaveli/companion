@@ -10,73 +10,88 @@ Companion de desktop com **IA local**: avatar **Live2D** animado, chat por texto
 
 ![Tela principal — avatar Live2D, chat, menu de ferramentas e painel de status](Screenshot/01.png)
 
+## Começar
+
+**Na primeira vez**, depois de clonar o repositório:
+
+```bash
+npm install
+npm run setup:models
+npm run setup:live2d
+```
+
+**Para abrir o app** (sempre):
+
+```bash
+npm run dev
+```
+
+Só isso já basta para conversar com a Lotus — avatar, IA local, voz *Lotus (natural) · Francisca* e lip-sync. Aguarde o indicador **IA pronta** (bolinha verde) antes de mandar mensagens.
+
 ## Funcionalidades
 
 - **Avatar Live2D** — Hiyori (padrão) e Mao na galeria; importe qualquer `.model3.json` ou escolha na **Galeria → Arquivo local**
 - **Cérebro local** — LLM em GGUF (`node-llama-cpp`), com busca na web quando precisa de fatos atuais
-- **Voz da Lotus** — perfil *Lotus (natural)* via Edge TTS (Francisca / Thalita); preview anime opcional com GPT-SoVITS
+- **Voz da Lotus** — *Lotus (natural) · Francisca* via Edge TTS (já incluída; sem setup extra)
 - **Lip-sync e corpo** — boca sincronizada com o áudio; idle e gestos nos modelos oficiais
-- **Menu de ferramentas** — botão ⚙ no canto da stage abre **Galeria**, **Voz**, **Animação** e **Posição** (painéis flutuantes abaixo do menu)
-- **Animação / olhar** — em *Animação*, escolha no máximo uma opção:
-  - **Seguir o mouse**
-  - **Olhar para o chat** (enquanto digita; volta ao neutro ao enviar)
-  - **Olhar para você** — rastreamento facial pela câmera (MediaPipe, processamento local)
-- **Painel lateral** — avatar e voz ativos, uso de **CPU/RAM** (Lotus ou sistema) e indicador **IA pronta**
+- **Menu de ferramentas** — botão ⚙ na stage: **Galeria**, **Voz**, **Animação** e **Posição**
+- **Animação / olhar** — seguir mouse, olhar para o chat ou olhar para você (câmera)
+- **Painel lateral** — avatar, voz, **CPU/RAM** e status da IA
 
-## Começar
+---
+
+## Opcional e referência
+
+O restante **não é necessário** para usar o app no dia a dia.
+
+### Voz *Lotus (natural) · Francisca*
+
+A voz padrão **não** usa GPT-SoVITS nem `setup:voice-ref`. Ela já vem com o app.
+
+- Voz neural **Francisca** (pt-BR) via Microsoft Edge TTS — precisa de **internet** ao falar
+- Se a síntese falhar, cai para a voz do sistema (Web Speech)
+- Ajuste tom e velocidade em **⚙ → Voz**
+
+### Voz anime — *Hiyori (preview)* (opcional)
+
+Somente se quiser **experimentar** voz estilo anime. **Não** é a Francisca.
 
 ```bash
-npm install
-npm run setup:models    # LLM (~2 GB) em models/llm/
-npm run setup:live2d    # Hiyori, Mao e Cubism Core
-npm run dev
+npm run setup:voice-ref
+npm run setup:gptsovits
+npm run gptsovits:start   # outro terminal, ao testar o preview
 ```
 
-Na primeira execução, aguarde o indicador **IA pronta** (bolinha verde) antes de conversar. Passe o mouse sobre o chip para ver detalhes do modelo carregado.
+| | Voz padrão | Voz anime (opcional) |
+|---|---|---|
+| Nome no app | *Lotus (natural) · Francisca* | *Hiyori (preview anime)* |
+| Setup | Nenhum (só `setup:models` + `setup:live2d`) | Comandos acima |
+| Motor | Edge TTS | GPT-SoVITS local |
 
-### Voz anime (opcional)
-
-```bash
-npm run setup:voice-ref   # áudio de referência
-npm run setup:gptsovits   # servidor GPT-SoVITS
-npm run gptsovits:start   # em outro terminal, ao testar preview Hiyori
-```
-
-## Comandos
+### Outros comandos
 
 | Comando | Descrição |
 |---------|-----------|
-| `npm run dev` | Desenvolvimento |
 | `npm run build` | Build de produção |
-| `npm run setup:models` | Baixa o LLM |
-| `npm run setup:live2d` | Modelos Live2D + runtime |
 | `npm run dist:win` | Instalador Windows (.exe) |
 | `npm run dist:mac` | Instalador macOS (.dmg) |
 
-## Instalável
-
-```bash
-npm run dist:win   # Windows
-npm run dist:mac   # macOS
-```
-
-## Documentação
+### Documentação
 
 - [Avatares — arquitetura, galeria e modelos locais](docs/AVATARS.md)
 
-## Estrutura
+### Estrutura do projeto
 
 ```
 src/main/       Electron, LLM, TTS, STT, IPC
 src/renderer/   React, Live2D, chat, face tracking e áudio
 src/shared/     Tipos e contratos IPC
-models/         LLM, whisper e voz (não versionados)
+models/         LLM e assets (não versionados)
 Screenshot/     Capturas para documentação
 ```
 
-## Observações
+### Observações
 
-- **Voz Edge TTS** — melhor qualidade online; offline cai para voz do sistema (Web Speech).
-- **Olhar pela câmera** — exige permissão de câmera; nenhum vídeo é enviado para a internet.
-- **Microfone / STT** — whisper em integração; preferir texto se a transcrição falhar no seu ambiente.
-- Modelos Live2D oficiais são material gratuito Live2D (uso não comercial). Ver licença de cada modelo externo.
+- **Olhar pela câmera** — exige permissão de câmera; processamento local (MediaPipe), nada enviado para a internet
+- **Microfone / STT** — whisper em integração; preferir texto se a transcrição falhar no seu ambiente
+- Modelos Live2D oficiais são material gratuito Live2D (uso não comercial). Ver licença de cada modelo externo
