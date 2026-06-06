@@ -1,82 +1,76 @@
-# Project Companion (Lotus)
+# Lotus
 
-Companion de desktop com IA local: um avatar 3D que ouve pelo microfone, pensa
-com um modelo de linguagem rodando no seu proprio computador, pesquisa na
-internet quando precisa e responde com voz feminina enquanto faz lip-sync.
+![Electron](https://img.shields.io/badge/Electron-42-47848F?logo=electron&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
+![Live2D](https://img.shields.io/badge/Live2D-Cubism-FF6B9D)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-Funciona em Windows e macOS (app Electron).
+Companion de desktop com **IA local**: avatar **Live2D** animado, chat por texto ou microfone, voz feminina em pt-BR e lip-sync. Roda no seu computador (Windows e macOS).
 
-## Como funciona (visao geral)
+![Tela principal — avatar Live2D, chat e controles de galeria/voz](Screenshot/01.png)
 
-```
-Microfone -> whisper.cpp (transcricao) -> LLM local (node-llama-cpp)
-   -> [busca na web opcional] -> texto -> voz (Edge TTS) -> avatar 3D fala
-```
+## Funcionalidades
 
-- Cerebro: LLM local em formato GGUF via `node-llama-cpp` (roda no processo principal).
-- Ouvir: `whisper.cpp` via `nodejs-whisper` (transcricao offline em portugues).
-- Voz: Edge TTS (voz feminina pt-BR "Francisca", gratuita, online) com fallback
-  offline para a voz do sistema (Web Speech API).
-- Avatar: modelo VRM com `@pixiv/three-vrm` + React Three Fiber. Sem um arquivo
-  `.vrm`, usa um personagem provisorio que tambem faz lip-sync.
-- Pesquisa: DuckDuckGo (sem chave de API), exposto ao LLM como ferramenta.
+- **Avatar Live2D** — Hiyori (padrão) e Mao na galeria; importe qualquer `.model3.json` ou escolha na **Galeria → Arquivo local**
+- **Cérebro local** — LLM em GGUF (`node-llama-cpp`), com busca na web quando precisa de fatos atuais
+- **Voz da Lotus** — perfil *Lotus (natural)* via Edge TTS (Francisca / Thalita); preview anime opcional com GPT-SoVITS
+- **Lip-sync e corpo** — boca sincronizada com o áudio; idle e gestos nos modelos oficiais
+- **Posição** — ajuste onde o avatar aparece na tela (persistido)
 
-## Primeiros passos
-
-1. Instalar dependencias:
-
-   ```bash
-   npm install
-   ```
-
-2. Baixar o cerebro (modelo LLM leve, ~2 GB):
-
-   ```bash
-   npm run setup:models
-   ```
-
-3. Avatar 3D: o app usa uma catgirl maid provisoria ate voce escolher um modelo.
-   Clique em "Trocar avatar" e selecione um arquivo `.vrm` ou `.glb`.
-
-   Formatos:
-   - `.vrm` (VRoid Hub, Booth) — melhor para lip-sync e expressoes faciais.
-   - `.glb` (Sketchfab) — modelos bonitos; baixe manualmente no site.
-
-   Exemplo (Erikha no Sketchfab):
-   https://sketchfab.com/3d-models/erikha-0c1f5ae3b5b64a92a9733ab60af7dcbb
-   1. Crie conta gratuita no Sketchfab
-   2. Baixe o modelo (botao Download, formato GLB)
-   3. No app: "Trocar avatar" e selecione o arquivo .glb
-
-   VRoid Hub (catgirl/maid com expressoes): https://hub.vroid.com
-
-4. Rodar em modo de desenvolvimento:
-
-   ```bash
-   npm run dev
-   ```
-
-## Gerar o instalavel
+## Começar
 
 ```bash
-npm run dist:win   # Windows (.exe NSIS)
-npm run dist:mac   # macOS (.dmg)
+npm install
+npm run setup:models    # LLM (~2 GB) em models/llm/
+npm run setup:live2d    # Hiyori, Mao e Cubism Core
+npm run dev
 ```
+
+Na primeira execução, aguarde o indicador **IA pronta** (bolinha verde) antes de conversar. Passe o mouse sobre o chip para ver qual modelo está carregado.
+
+### Voz anime (opcional)
+
+```bash
+npm run setup:voice-ref   # áudio de referência
+npm run setup:gptsovits   # servidor GPT-SoVITS
+npm run gptsovits:start   # em outro terminal, ao testar preview Hiyori
+```
+
+## Comandos
+
+| Comando | Descrição |
+|---------|-----------|
+| `npm run dev` | Desenvolvimento |
+| `npm run build` | Build de produção |
+| `npm run setup:models` | Baixa o LLM |
+| `npm run setup:live2d` | Modelos Live2D + runtime |
+| `npm run dist:win` | Instalador Windows (.exe) |
+| `npm run dist:mac` | Instalador macOS (.dmg) |
+
+## Instalável
+
+```bash
+npm run dist:win   # Windows
+npm run dist:mac   # macOS
+```
+
+## Documentação
+
+- [Avatares — arquitetura, galeria e modelos locais](docs/AVATARS.md)
 
 ## Estrutura
 
-- `src/main/` - processo principal (Electron): janela, IPC e servicos de IA.
-  - `services/llm.ts` - carrega o GGUF e conversa (com function-calling de busca).
-  - `services/stt.ts` - transcricao com whisper.cpp.
-  - `services/tts.ts` - sintese de voz (Edge TTS).
-  - `services/search.ts` - busca na web (DuckDuckGo).
-- `src/preload/` - ponte segura entre interface e back-end.
-- `src/renderer/` - interface React: cena 3D, audio e conversa.
-- `models/` - assets de IA (nao versionados).
+```
+src/main/       Electron, LLM, TTS, STT, IPC
+src/renderer/   React, Live2D, chat e áudio
+src/shared/     Tipos e contratos IPC
+models/         LLM, whisper e voz (não versionados)
+Screenshot/     Capturas para documentação
+```
 
-## Observacoes
+## Observações
 
-- A primeira transcricao por voz compila o `whisper.cpp` e baixa o modelo
-  `base` automaticamente (pode demorar na primeira vez).
-- A voz feminina de melhor qualidade (Edge TTS) precisa de internet. Sem
-  internet, a companion usa a voz do sistema operacional.
+- **Voz Edge TTS** — melhor qualidade online; offline cai para voz do sistema (Web Speech).
+- **Microfone / STT** — whisper em integração; preferir texto se a transcrição falhar no seu ambiente.
+- Modelos Live2D oficiais são material gratuito Live2D (uso não comercial). Ver licença de cada modelo externo.
