@@ -118,6 +118,12 @@ export interface CatalogAvatar {
   description: string
 }
 
+/** Curated avatar plus install/availability state for the gallery UI. */
+export interface CatalogAvatarEntry extends CatalogAvatar {
+  available: boolean
+  unavailableReason?: string
+}
+
 export interface AvatarCollection {
   id: string
   name: string
@@ -151,6 +157,7 @@ export const IPC = {
   // Avatar
   avatarPick: 'avatar:pick',
   avatarLoad: 'avatar:load',
+  avatarSave: 'avatar:save',
   avatarCatalogCurated: 'avatar:catalog:curated',
   avatarCatalogCollections: 'avatar:catalog:collections',
   avatarCatalogList: 'avatar:catalog:list',

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { AvatarFile, CatalogAvatar, VroidLink } from '../../../shared/types'
+import type { AvatarFile, CatalogAvatarEntry, VroidLink } from '../../../shared/types'
 
 export function AvatarGallery({
   open,
@@ -10,7 +10,7 @@ export function AvatarGallery({
   onClose: () => void
   onSelect: (file: AvatarFile) => void
 }): React.JSX.Element | null {
-  const [curated, setCurated] = useState<CatalogAvatar[]>([])
+  const [curated, setCurated] = useState<CatalogAvatarEntry[]>([])
   const [links, setLinks] = useState<VroidLink[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -32,7 +32,11 @@ export function AvatarGallery({
     })()
   }, [open])
 
-  const useAvatar = async (avatar: CatalogAvatar): Promise<void> => {
+  const useAvatar = async (avatar: CatalogAvatarEntry): Promise<void> => {
+    if (!avatar.available) {
+      setError(avatar.unavailableReason ?? 'Modelo não disponível.')
+      return
+    }
     setError('')
     setBusy(true)
     try {
@@ -95,14 +99,15 @@ export function AvatarGallery({
             <button
               key={a.id}
               type="button"
-              className="gallery-card"
-              disabled={busy}
+              className={`gallery-card ${a.available ? '' : 'unavailable'}`}
+              disabled={busy || !a.available}
+              title={a.available ? a.description : a.unavailableReason}
               onClick={() => void useAvatar(a)}
             >
               <img src={a.thumbnailUrl} alt={a.name} loading="lazy" />
               <div className="gallery-card-info">
                 <strong>{a.name}</strong>
-                <span>{a.license}</span>
+                <span>{a.available ? a.license : 'Não instalado'}</span>
               </div>
             </button>
           ))}

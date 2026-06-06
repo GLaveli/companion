@@ -43,8 +43,7 @@ Audio (player) → lipsync.ts (currentVolume)
 ### Setup
 
 ```bash
-npm run setup:live2d          # Hiyori + Cubism Core
-npm run setup:live2d -- --mao # inclui modelo Mao (expressoes)
+npm run setup:live2d   # Hiyori, Mao e Cubism Core
 npm run dev
 ```
 

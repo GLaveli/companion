@@ -7,6 +7,7 @@ import {
   type AvatarFile,
   type AvatarLayout,
   type CatalogAvatar,
+  type CatalogAvatarEntry,
   type EdgeVoiceSettings,
   type GptSoVitsStatus,
   type ModelStatus,
@@ -36,7 +37,8 @@ const api = {
     ipcRenderer.invoke(IPC.sttTranscribe, wav),
   pickAvatar: (): Promise<AvatarFile | null> => ipcRenderer.invoke(IPC.avatarPick),
   loadAvatar: (): Promise<AvatarFile | null> => ipcRenderer.invoke(IPC.avatarLoad),
-  catalogCurated: (): Promise<CatalogAvatar[]> => ipcRenderer.invoke(IPC.avatarCatalogCurated),
+  saveAvatar: (file: AvatarFile): Promise<AvatarFile> => ipcRenderer.invoke(IPC.avatarSave, file),
+  catalogCurated: (): Promise<CatalogAvatarEntry[]> => ipcRenderer.invoke(IPC.avatarCatalogCurated),
   catalogCollections: (): Promise<AvatarCollection[]> =>
     ipcRenderer.invoke(IPC.avatarCatalogCollections),
   catalogList: (projectId: string): Promise<CatalogAvatar[]> =>

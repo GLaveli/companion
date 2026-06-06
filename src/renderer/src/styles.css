@@ -766,6 +766,11 @@ body,
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+.gallery-card.unavailable {
+  opacity: 0.65;
+  filter: grayscale(0.35);
+}
 .gallery-card img {
   width: 100%;
   aspect-ratio: 3/4;

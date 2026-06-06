@@ -2,8 +2,17 @@ import { app, dialog, BrowserWindow } from 'electron'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { pathToFileURL, fileURLToPath } from 'node:url'
 import type { AvatarFile, AvatarKind } from '../../shared/types'
+
+interface AvatarConfig {
+  kind: AvatarKind
+  name?: string
+  /** Absolute path for file picker selections. */
+  path?: string
+  /** Bundled path e.g. /models/mao/Mao.model3.json */
+  catalogUrl?: string
+}
 
 function kindFromPath(filePath: string): AvatarKind {
   const lower = filePath.toLowerCase()
@@ -16,30 +25,67 @@ function configPath(): string {
   return join(app.getPath('userData'), 'avatar.json')
 }
 
-export async function savePickedPath(modelPath: string): Promise<void> {
-  await mkdir(app.getPath('userData'), { recursive: true })
-  await writeFile(
-    configPath(),
-    JSON.stringify({ path: modelPath, kind: kindFromPath(modelPath) }),
-    'utf-8'
-  )
+/** Maps `/models/...` URL to on-disk path under renderer public assets. */
+export function resolveBundledModelPath(modelUrl: string): string | null {
+  if (!modelUrl.startsWith('/models/')) return null
+  const rel = modelUrl.slice(1)
+
+  const candidates = [
+    join(app.getAppPath(), 'src/renderer/public', rel),
+    join(app.getAppPath(), 'out/renderer', rel),
+    join(process.resourcesPath, 'app.asar.unpacked', 'out/renderer', rel)
+  ]
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate
+  }
+  return null
 }
 
-async function readPickedConfig(): Promise<{ path: string; kind: AvatarKind } | null> {
+export function bundledModelExists(modelUrl: string): boolean {
+  return resolveBundledModelPath(modelUrl) !== null
+}
+
+export async function saveAvatarSelection(file: AvatarFile): Promise<void> {
+  await mkdir(app.getPath('userData'), { recursive: true })
+
+  let config: AvatarConfig
+  if (file.modelUrl.startsWith('/models/')) {
+    config = { kind: file.kind, name: file.name, catalogUrl: file.modelUrl }
+  } else if (file.modelUrl.startsWith('file://')) {
+    config = {
+      kind: file.kind,
+      name: file.name,
+      path: fileURLToPath(file.modelUrl)
+    }
+  } else {
+    config = { kind: file.kind, name: file.name, catalogUrl: file.modelUrl }
+  }
+
+  await writeFile(configPath(), JSON.stringify(config, null, 2), 'utf-8')
+}
+
+async function readAvatarConfig(): Promise<AvatarConfig | null> {
   try {
     if (!existsSync(configPath())) return null
     const raw = await readFile(configPath(), 'utf-8')
-    const parsed = JSON.parse(raw) as { path?: string; kind?: AvatarKind }
-    if (!parsed.path || !existsSync(parsed.path)) return null
-    return { path: parsed.path, kind: parsed.kind ?? kindFromPath(parsed.path) }
+    const parsed = JSON.parse(raw) as Partial<AvatarConfig> & { path?: string }
+    if (!parsed.kind && !parsed.path && !parsed.catalogUrl) return null
+
+    return {
+      kind: parsed.kind ?? (parsed.path ? kindFromPath(parsed.path) : 'live2d'),
+      name: parsed.name,
+      path: parsed.path,
+      catalogUrl: parsed.catalogUrl
+    }
   } catch {
     return null
   }
 }
 
-function toAvatarFile(filePath: string): AvatarFile {
+function toAvatarFile(filePath: string, name?: string): AvatarFile {
   return {
-    name: basename(dirname(filePath)) || basename(filePath),
+    name: name ?? (basename(dirname(filePath)) || basename(filePath)),
     kind: kindFromPath(filePath),
     modelUrl: pathToFileURL(filePath).href
   }
@@ -61,22 +107,36 @@ export async function pickAvatar(window: BrowserWindow | null): Promise<AvatarFi
   if (!filePath.toLowerCase().endsWith('.model3.json') && kindFromPath(filePath) === 'live2d') {
     return null
   }
-  await savePickedPath(filePath)
-  return toAvatarFile(filePath)
+  const file = toAvatarFile(filePath)
+  await saveAvatarSelection(file)
+  return file
 }
 
-/** Loads the previously picked avatar, if any. */
+/** Loads the previously saved avatar, if any. */
 export async function loadSavedAvatar(): Promise<AvatarFile | null> {
-  const saved = await readPickedConfig()
-  if (!saved) return null
-  try {
-    await readFile(saved.path)
-    return {
-      name: basename(dirname(saved.path)) || basename(saved.path),
-      kind: saved.kind,
-      modelUrl: pathToFileURL(saved.path).href
+  const config = await readAvatarConfig()
+  if (!config) return null
+
+  if (config.catalogUrl) {
+    if (config.catalogUrl.startsWith('/models/') && !bundledModelExists(config.catalogUrl)) {
+      return null
     }
-  } catch {
-    return null
+    const fallbackName = basename(config.catalogUrl, '.model3.json')
+    return {
+      name: config.name ?? fallbackName,
+      kind: config.kind,
+      modelUrl: config.catalogUrl
+    }
   }
+
+  if (config.path && existsSync(config.path)) {
+    try {
+      await readFile(config.path)
+      return toAvatarFile(config.path, config.name)
+    } catch {
+      return null
+    }
+  }
+
+  return null
 }

@@ -1,5 +1,6 @@
 // Downloads bundled Live2D models + Cubism Core runtime.
-// Usage: node scripts/setup-live2d.mjs [--mao]
+// Usage: node scripts/setup-live2d.mjs
+// Downloads Hiyori, Mao and Cubism Core runtime.
 import { mkdir, writeFile, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -64,13 +65,11 @@ async function downloadModel(name, { dir, modelJson }) {
 }
 
 async function main() {
-  const withMao = process.argv.includes('--mao')
-
   console.log('Baixando Cubism Core...')
   await download(CUBISM_CORE_URL, join(cubismDir, 'live2dcubismcore.min.js'))
 
   await downloadModel('hiyori', MODELS.hiyori)
-  if (withMao) await downloadModel('mao', MODELS.mao)
+  await downloadModel('mao', MODELS.mao)
 
   console.log('\nLive2D pronto em src/renderer/public/')
 }

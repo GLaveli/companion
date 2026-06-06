@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { IPC, type AvatarLayout, type EdgeVoiceSettings, type ModelStatus } from '../shared/types'
+import { IPC, type AvatarFile, type AvatarLayout, type EdgeVoiceSettings, type ModelStatus } from '../shared/types'
 import { VOICE_PREVIEW_LINE } from '../shared/voiceText'
 import { initLlm, chat, resetChat, isLlmReady } from './services/llm'
 import { getGptSoVitsStatus, previewEdgeVoice, speak } from './services/tts'
@@ -9,7 +9,7 @@ import { startGptSoVitsServer, stopGptSoVitsServer } from './services/gptsovitsP
 import { listVoiceEntries, setActiveVoiceProfile } from './services/voiceStore'
 import { getEdgeVoiceSettings, saveEdgeVoiceSettings } from './services/edgeVoiceSettings'
 import { transcribe, isSttReady } from './services/stt'
-import { pickAvatar, loadSavedAvatar } from './services/avatar'
+import { pickAvatar, loadSavedAvatar, saveAvatarSelection } from './services/avatar'
 import { loadAvatarLayout, saveAvatarLayout } from './services/avatarLayout'
 import {
   listCollections,
@@ -112,6 +112,10 @@ function registerIpc(): void {
   ipcMain.handle(IPC.sttTranscribe, async (_e, wav: Uint8Array) => ({ text: await transcribe(wav) }))
   ipcMain.handle(IPC.avatarPick, async () => pickAvatar(mainWindow))
   ipcMain.handle(IPC.avatarLoad, async () => loadSavedAvatar())
+  ipcMain.handle(IPC.avatarSave, async (_e, file: AvatarFile) => {
+    await saveAvatarSelection(file)
+    return file
+  })
   ipcMain.handle(IPC.avatarCatalogCurated, async () => listCurated())
   ipcMain.handle(IPC.avatarCatalogCollections, async () => listCollections())
   ipcMain.handle(IPC.avatarCatalogList, async (_e, projectId: string) =>
