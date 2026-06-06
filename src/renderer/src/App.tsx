@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AvatarGallery } from './components/AvatarGallery'
 import { AvatarLayoutControls } from './components/AvatarLayoutControls'
 import { VoiceControls } from './components/VoiceControls'
@@ -7,6 +7,7 @@ import { flushAvatarLayoutSave, useAvatarLayout } from './avatar/layoutStore'
 import { getAvatarProvider } from './avatar/registry'
 import { useStore } from './store'
 import { useConversation } from './hooks/useConversation'
+import { loadActiveVoiceBarLabel } from './voiceLabel'
 import type { AvatarFile } from '../../shared/types'
 
 const PHASE_LABEL: Record<string, string> = {
@@ -24,8 +25,17 @@ export default function App(): React.JSX.Element {
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [avatarReady, setAvatarReady] = useState(false)
+  const [voiceLabel, setVoiceLabel] = useState({ short: 'Lotus (natural) · Francisca', title: '' })
   const listRef = useRef<HTMLDivElement>(null)
   const hydrateLayout = useAvatarLayout((s) => s.hydrate)
+
+  const refreshVoiceLabel = useCallback(async (): Promise<void> => {
+    try {
+      setVoiceLabel(await loadActiveVoiceBarLabel())
+    } catch (err) {
+      console.error('[app] voice label failed:', err)
+    }
+  }, [])
 
   const applyAvatar = (file: AvatarFile | null): void => {
     if (!file) return
@@ -61,6 +71,7 @@ export default function App(): React.JSX.Element {
           )
         }
         setAvatarReady(true)
+        await refreshVoiceLabel()
       } catch (err) {
         console.error('[app] init failed:', err)
         setAvatarReady(true)
@@ -74,10 +85,9 @@ export default function App(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const onPickAvatar = async (): Promise<void> => {
-    const file = await window.companion.pickAvatar()
-    applyAvatar(file)
-  }
+  useEffect(() => {
+    if (voiceOpen) void refreshVoiceLabel()
+  }, [voiceOpen, refreshVoiceLabel])
 
   useEffect(() => {
     const el = listRef.current
@@ -123,25 +133,33 @@ export default function App(): React.JSX.Element {
         <p className="status">{statusMessage}</p>
 
         <div className="avatar-bar">
-          <button type="button" className="avatar-btn primary" onClick={() => setGalleryOpen(true)}>
-            Galeria
-          </button>
-          <button type="button" className="avatar-btn" onClick={() => void onPickAvatar()}>
-            Arquivo local
-          </button>
-          <button
-            type="button"
-            className={`avatar-btn ${voiceOpen ? 'active' : ''}`}
-            onClick={() => setVoiceOpen((v) => !v)}
-          >
-            Voz
-          </button>
-          <span className="avatar-name" title={avatarName ?? ''}>
-            {avatarName ?? provider.defaultName}
-          </span>
+          <div className="avatar-bar-group">
+            <button type="button" className="avatar-btn primary" onClick={() => setGalleryOpen(true)}>
+              Galeria
+            </button>
+            <span className="avatar-bar-label" title={avatarName ?? provider.defaultName}>
+              {avatarName ?? provider.defaultName}
+            </span>
+          </div>
+          <div className="avatar-bar-group">
+            <button
+              type="button"
+              className={`avatar-btn ${voiceOpen ? 'active' : ''}`}
+              onClick={() => setVoiceOpen((v) => !v)}
+            >
+              Voz
+            </button>
+            <span className="avatar-bar-label" title={voiceLabel.title || voiceLabel.short}>
+              {voiceLabel.short}
+            </span>
+          </div>
         </div>
 
-        <VoiceControls open={voiceOpen} onClose={() => setVoiceOpen(false)} />
+        <VoiceControls
+          open={voiceOpen}
+          onClose={() => setVoiceOpen(false)}
+          onVoiceChange={() => void refreshVoiceLabel()}
+        />
 
         <div className="messages" ref={listRef}>
           {messages.length === 0 && (
@@ -149,8 +167,7 @@ export default function App(): React.JSX.Element {
               Óii! Manda um oi pra Lotus — escreve aqui embaixo ou usa o microfone.
               <br />
               <br />
-              Avatar Live2D com animação de corpo. Escolha um modelo na galeria ou aponte para um
-              arquivo <code>.model3.json</code> seu.
+              Avatar Live2D com animação de corpo. Escolha um modelo na galeria.
             </div>
           )}
           {messages.map((m, i) => (

@@ -19,11 +19,13 @@ const DEFAULTS: EdgeVoiceSettings = {
 export function VoiceEdgeTunePanel({
   profileId,
   profileName,
-  onClose
+  onClose,
+  onSettingsChange
 }: {
   profileId: string
   profileName: string
   onClose: () => void
+  onSettingsChange?: () => void
 }): React.JSX.Element {
   const [settings, setSettings] = useState<EdgeVoiceSettings>(DEFAULTS)
   const [busy, setBusy] = useState(false)
@@ -51,11 +53,12 @@ export function VoiceEdgeTunePanel({
       if (typeof window.companion.saveEdgeVoiceSettings !== 'function') return
       try {
         await window.companion.saveEdgeVoiceSettings(profileId, next)
+        onSettingsChange?.()
       } catch (err) {
         setError((err as Error).message)
       }
     },
-    [profileId]
+    [profileId, onSettingsChange]
   )
 
   const onReset = (): void => {

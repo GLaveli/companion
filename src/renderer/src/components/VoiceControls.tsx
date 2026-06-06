@@ -7,10 +7,12 @@ import { VOICE_PREVIEW_LINE } from '../../../shared/voiceText'
 
 export function VoiceControls({
   open,
-  onClose
+  onClose,
+  onVoiceChange
 }: {
   open: boolean
   onClose: () => void
+  onVoiceChange?: () => void
 }): React.JSX.Element | null {
   const [voices, setVoices] = useState<VoiceListEntry[]>([])
   const [gptStatus, setGptStatus] = useState<GptSoVitsStatus | null>(null)
@@ -38,6 +40,7 @@ export function VoiceControls({
     try {
       await window.companion.setActiveVoice(id)
       await refresh()
+      onVoiceChange?.()
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -131,6 +134,7 @@ export function VoiceControls({
                   profileId={voice.id}
                   profileName={voice.name}
                   onClose={() => setTuningId(null)}
+                  onSettingsChange={onVoiceChange}
                 />
               ) : null}
             </li>

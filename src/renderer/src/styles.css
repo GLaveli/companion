@@ -498,7 +498,15 @@ body,
 .avatar-bar {
   display: flex;
   align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.avatar-bar-group {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .avatar-btn {
@@ -520,13 +528,13 @@ body,
   font-weight: 600;
 }
 
-.avatar-name {
+.avatar-bar-label {
   font-size: 11px;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 160px;
+  max-width: 150px;
 }
 
 .messages {
@@ -664,6 +672,47 @@ body,
   cursor: pointer;
 }
 
+.gallery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+}
+
+.gallery-local-btn {
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.gallery-local-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.gallery-local-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.gallery-local-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.gallery-local-hint code {
+  font-size: 11px;
+  color: var(--text);
+}
+
 .gallery-tabs {
   display: flex;
   gap: 6px;
@@ -709,8 +758,13 @@ body,
   text-align: left;
   color: var(--text);
 }
-.gallery-card:hover {
+.gallery-card:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+.gallery-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .gallery-card img {
   width: 100%;

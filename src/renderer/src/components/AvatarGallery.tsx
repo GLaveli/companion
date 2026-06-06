@@ -13,6 +13,7 @@ export function AvatarGallery({
   const [curated, setCurated] = useState<CatalogAvatar[]>([])
   const [links, setLinks] = useState<VroidLink[]>([])
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -32,12 +33,32 @@ export function AvatarGallery({
   }, [open])
 
   const useAvatar = async (avatar: CatalogAvatar): Promise<void> => {
+    setError('')
+    setBusy(true)
     try {
       const file = await window.companion.catalogDownload(avatar.modelUrl, avatar.name)
       onSelect(file)
       onClose()
     } catch (e) {
       setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const pickLocal = async (): Promise<void> => {
+    setError('')
+    setBusy(true)
+    try {
+      const file = await window.companion.pickAvatar()
+      if (file) {
+        onSelect(file)
+        onClose()
+      }
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -53,12 +74,21 @@ export function AvatarGallery({
           </button>
         </header>
 
-        {error && <p className="gallery-error">{error}</p>}
+        {error ? <p className="gallery-error">{error}</p> : null}
 
-        <p className="gallery-note">
-          Modelos com animação de corpo (idle, gestos). Para modelos externos, baixe a pasta
-          completa e use &quot;Arquivo local&quot; apontando para o <code>.model3.json</code>.
-        </p>
+        <div className="gallery-actions">
+          <button
+            type="button"
+            className="gallery-local-btn"
+            disabled={busy}
+            onClick={() => void pickLocal()}
+          >
+            Arquivo local…
+          </button>
+          <span className="gallery-local-hint">Selecione um <code>.model3.json</code> no seu computador</span>
+        </div>
+
+        <p className="gallery-note">Modelos inclusos no app (animação de corpo: idle e gestos):</p>
 
         <div className="gallery-grid">
           {curated.map((a) => (
@@ -66,6 +96,7 @@ export function AvatarGallery({
               key={a.id}
               type="button"
               className="gallery-card"
+              disabled={busy}
               onClick={() => void useAvatar(a)}
             >
               <img src={a.thumbnailUrl} alt={a.name} loading="lazy" />
@@ -78,7 +109,7 @@ export function AvatarGallery({
         </div>
 
         <div className="vroid-list">
-          <p className="gallery-note">Fontes gratis para baixar mais modelos:</p>
+          <p className="gallery-note">Fontes grátis para baixar mais modelos:</p>
           {links.map((v) => (
             <a key={v.url} className="vroid-card" href={v.url} target="_blank" rel="noreferrer">
               <strong>{v.name}</strong>
