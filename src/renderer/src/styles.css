@@ -34,6 +34,16 @@ body,
   background: radial-gradient(circle at 50% 30%, #1d1d2e, #0f0f17 70%);
 }
 
+.avatar-stage,
+.avatar-canvas-host {
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-canvas-host canvas {
+  display: block;
+}
+
 .badge {
   position: absolute;
   top: 18px;
@@ -109,6 +119,12 @@ body,
 }
 .avatar-btn:hover {
   border-color: var(--accent);
+}
+.avatar-btn.primary {
+  background: var(--accent);
+  color: #1a1336;
+  border-color: transparent;
+  font-weight: 600;
 }
 
 .avatar-name {
@@ -210,6 +226,157 @@ body,
   background: var(--accent-2);
   color: #1a1336;
   animation: pulse 1.2s infinite;
+}
+
+.gallery-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.gallery-modal {
+  width: min(720px, 92vw);
+  max-height: 82vh;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.gallery-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.gallery-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.gallery-tabs {
+  display: flex;
+  gap: 6px;
+}
+.gallery-tabs button {
+  flex: 1;
+  background: var(--panel-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  padding: 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.gallery-tabs button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.gallery-select {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.gallery-card {
+  background: var(--panel-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  color: var(--text);
+}
+.gallery-card:hover {
+  border-color: var(--accent);
+}
+.gallery-card img {
+  width: 100%;
+  aspect-ratio: 3/4;
+  object-fit: cover;
+  display: block;
+  background: #1a1a28;
+}
+.gallery-card-info {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gallery-card-info strong {
+  font-size: 12px;
+}
+.gallery-card-info span {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.gallery-status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.gallery-error {
+  margin: 0;
+  font-size: 12px;
+  color: #ff8a8a;
+}
+.gallery-note {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.vroid-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vroid-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  text-decoration: none;
+}
+.vroid-card:hover {
+  border-color: var(--accent);
+}
+.vroid-card span {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 @keyframes pulse {

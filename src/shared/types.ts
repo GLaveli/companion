@@ -34,13 +34,37 @@ export interface TranscriptionResult {
   text: string
 }
 
-export type AvatarKind = 'vrm' | 'glb'
+/** Avatar engine identifier — add new kinds when registering providers. */
+export type AvatarKind = 'live2d' | 'vrm' | 'glb'
 
 export interface AvatarFile {
   name: string
   kind: AvatarKind
-  /** Raw model bytes; the renderer turns this into a blob URL for the loader. */
-  data: Uint8Array
+  /** URL to the model entrypoint (bundled path, file://, or https://). */
+  modelUrl: string
+}
+
+export interface CatalogAvatar {
+  id: string
+  name: string
+  projectId: string
+  license: string
+  thumbnailUrl: string
+  modelUrl: string
+  description: string
+}
+
+export interface AvatarCollection {
+  id: string
+  name: string
+  license: string
+  description: string
+}
+
+export interface VroidLink {
+  name: string
+  url: string
+  note: string
 }
 
 export const IPC = {
@@ -55,6 +79,11 @@ export const IPC = {
   // Avatar
   avatarPick: 'avatar:pick',
   avatarLoad: 'avatar:load',
+  avatarCatalogCurated: 'avatar:catalog:curated',
+  avatarCatalogCollections: 'avatar:catalog:collections',
+  avatarCatalogList: 'avatar:catalog:list',
+  avatarCatalogVroid: 'avatar:catalog:vroid',
+  avatarCatalogDownload: 'avatar:catalog:download',
   // Status events (main -> renderer)
   onStatus: 'app:status'
 } as const

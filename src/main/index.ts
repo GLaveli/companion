@@ -6,6 +6,13 @@ import { initLlm, chat, resetChat, isLlmReady } from './services/llm'
 import { speak } from './services/tts'
 import { transcribe, isSttReady } from './services/stt'
 import { pickAvatar, loadSavedAvatar } from './services/avatar'
+import {
+  listCollections,
+  listCollectionAvatars,
+  listCurated,
+  listVroidLinks,
+  downloadCatalogAvatar
+} from './services/avatarCatalog'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -26,7 +33,9 @@ function createWindow(): void {
       sandbox: false,
       // The microphone is requested by the renderer; allow it.
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      // Live2D folders picked locally load via file:// relative assets.
+      webSecurity: false
     }
   })
 
@@ -73,6 +82,15 @@ function registerIpc(): void {
   ipcMain.handle(IPC.sttTranscribe, async (_e, wav: Uint8Array) => ({ text: await transcribe(wav) }))
   ipcMain.handle(IPC.avatarPick, async () => pickAvatar(mainWindow))
   ipcMain.handle(IPC.avatarLoad, async () => loadSavedAvatar())
+  ipcMain.handle(IPC.avatarCatalogCurated, async () => listCurated())
+  ipcMain.handle(IPC.avatarCatalogCollections, async () => listCollections())
+  ipcMain.handle(IPC.avatarCatalogList, async (_e, projectId: string) =>
+    listCollectionAvatars(projectId)
+  )
+  ipcMain.handle(IPC.avatarCatalogVroid, async () => listVroidLinks())
+  ipcMain.handle(IPC.avatarCatalogDownload, async (_e, modelUrl: string, name: string) =>
+    downloadCatalogAvatar(modelUrl, name)
+  )
 }
 
 app.whenReady().then(async () => {

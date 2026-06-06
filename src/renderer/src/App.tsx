@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { Scene } from './scene/Scene'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { AvatarGallery } from './components/AvatarGallery'
+import { AvatarStage } from './avatar/AvatarStage'
+import { getAvatarProvider } from './avatar/registry'
 import { useStore } from './store'
 import { useConversation } from './hooks/useConversation'
+import type { AvatarFile } from '../../shared/types'
 
 const PHASE_LABEL: Record<string, string> = {
   idle: 'Pronta para conversar',
@@ -11,19 +14,15 @@ const PHASE_LABEL: Record<string, string> = {
 }
 
 export default function App(): React.JSX.Element {
-  const { messages, phase, statusMessage, llmReady, avatarName } = useStore()
+  const { messages, phase, statusMessage, llmReady, avatarName, avatarKind } = useStore()
   const { sendText, startListening, stopListening } = useConversation()
   const [input, setInput] = useState('')
+  const [galleryOpen, setGalleryOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
-  const blobUrlRef = useRef<string | null>(null)
 
-  const applyAvatar = (file: { name: string; kind: 'vrm' | 'glb'; data: Uint8Array } | null): void => {
+  const applyAvatar = (file: AvatarFile | null): void => {
     if (!file) return
-    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current)
-    const blob = new Blob([file.data as unknown as BlobPart], { type: 'application/octet-stream' })
-    const url = URL.createObjectURL(blob)
-    blobUrlRef.current = url
-    useStore.getState().setAvatar(url, file.name, file.kind)
+    useStore.getState().setAvatar(file.modelUrl, file.name, file.kind)
   }
 
   useEffect(() => {
@@ -31,7 +30,17 @@ export default function App(): React.JSX.Element {
       useStore.getState().setStatus(s.message || statusMessage, s.llmReady)
     })
     window.companion.getStatus().then((s) => useStore.getState().setStatus(s.message, s.llmReady))
-    window.companion.loadAvatar().then(applyAvatar)
+
+    void (async () => {
+      const saved = await window.companion.loadAvatar()
+      if (saved) {
+        applyAvatar(saved)
+        return
+      }
+      const provider = getAvatarProvider(null)
+      useStore.getState().setAvatar(provider.defaultModelUrl, provider.defaultName, provider.id)
+    })()
+
     return off
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -53,11 +62,12 @@ export default function App(): React.JSX.Element {
   }
 
   const micActive = phase === 'listening'
+  const provider = useMemo(() => getAvatarProvider(avatarKind), [avatarKind])
 
   return (
     <div className="app">
       <div className="stage">
-        <Scene />
+        <AvatarStage />
         <div className="badge">{PHASE_LABEL[phase]}</div>
       </div>
 
@@ -69,11 +79,14 @@ export default function App(): React.JSX.Element {
         <p className="status">{statusMessage}</p>
 
         <div className="avatar-bar">
+          <button type="button" className="avatar-btn primary" onClick={() => setGalleryOpen(true)}>
+            Galeria
+          </button>
           <button type="button" className="avatar-btn" onClick={() => void onPickAvatar()}>
-            Trocar avatar
+            Arquivo local
           </button>
           <span className="avatar-name" title={avatarName ?? ''}>
-            {avatarName ?? 'catgirl maid (provisorio)'}
+            {avatarName ?? provider.defaultName}
           </span>
         </div>
 
@@ -83,8 +96,8 @@ export default function App(): React.JSX.Element {
               Diga ola para a Lotus! Use o microfone ou escreva uma mensagem abaixo.
               <br />
               <br />
-              Quer um avatar bonito? Baixe um .vrm (VRoid Hub) ou .glb (Sketchfab) e clique em
-              &quot;Trocar avatar&quot;.
+              Avatar Live2D com animacao de corpo. Escolha um modelo na galeria ou aponte para um
+              arquivo <code>.model3.json</code> seu.
             </div>
           )}
           {messages.map((m, i) => (
@@ -114,6 +127,12 @@ export default function App(): React.JSX.Element {
           </button>
         </form>
       </aside>
+
+      <AvatarGallery
+        open={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        onSelect={applyAvatar}
+      />
     </div>
   )
 }

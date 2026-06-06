@@ -1,59 +1,81 @@
 import { app, dialog, BrowserWindow } from 'electron'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { AvatarFile, AvatarKind } from '../../shared/types'
 
 function kindFromPath(filePath: string): AvatarKind {
-  return filePath.toLowerCase().endsWith('.glb') ? 'glb' : 'vrm'
+  const lower = filePath.toLowerCase()
+  if (lower.endsWith('.glb')) return 'glb'
+  if (lower.endsWith('.vrm')) return 'vrm'
+  return 'live2d'
 }
 
-// Remembers which .vrm the user picked so it loads again next launch.
 function configPath(): string {
   return join(app.getPath('userData'), 'avatar.json')
 }
 
-async function savePickedPath(vrmPath: string): Promise<void> {
+export async function savePickedPath(modelPath: string): Promise<void> {
   await mkdir(app.getPath('userData'), { recursive: true })
-  await writeFile(configPath(), JSON.stringify({ path: vrmPath }), 'utf-8')
+  await writeFile(
+    configPath(),
+    JSON.stringify({ path: modelPath, kind: kindFromPath(modelPath) }),
+    'utf-8'
+  )
 }
 
-async function readPickedPath(): Promise<string | null> {
+async function readPickedConfig(): Promise<{ path: string; kind: AvatarKind } | null> {
   try {
     if (!existsSync(configPath())) return null
     const raw = await readFile(configPath(), 'utf-8')
-    const { path } = JSON.parse(raw) as { path?: string }
-    return path && existsSync(path) ? path : null
+    const parsed = JSON.parse(raw) as { path?: string; kind?: AvatarKind }
+    if (!parsed.path || !existsSync(parsed.path)) return null
+    return { path: parsed.path, kind: parsed.kind ?? kindFromPath(parsed.path) }
   } catch {
     return null
   }
 }
 
-/** Opens a file picker for a .vrm or .glb (Sketchfab) and returns its bytes. */
+function toAvatarFile(filePath: string): AvatarFile {
+  return {
+    name: basename(dirname(filePath)) || basename(filePath),
+    kind: kindFromPath(filePath),
+    modelUrl: pathToFileURL(filePath).href
+  }
+}
+
+/** Opens a file picker for Live2D (.model3.json) or legacy 3D formats. */
 export async function pickAvatar(window: BrowserWindow | null): Promise<AvatarFile | null> {
   const result = await dialog.showOpenDialog(window ?? undefined!, {
-    title: 'Escolha um avatar 3D',
+    title: 'Escolha um avatar Live2D',
     properties: ['openFile'],
     filters: [
-      { name: 'Avatar 3D', extensions: ['vrm', 'glb'] },
-      { name: 'VRM (VRoid, expressoes)', extensions: ['vrm'] },
-      { name: 'GLB (Sketchfab)', extensions: ['glb'] }
+      { name: 'Live2D (model3.json)', extensions: ['json'] },
+      { name: 'VRM (legado)', extensions: ['vrm'] },
+      { name: 'GLB (legado)', extensions: ['glb'] }
     ]
   })
   if (result.canceled || !result.filePaths.length) return null
   const filePath = result.filePaths[0]
-  const data = await readFile(filePath)
+  if (!filePath.toLowerCase().endsWith('.model3.json') && kindFromPath(filePath) === 'live2d') {
+    return null
+  }
   await savePickedPath(filePath)
-  return { name: basename(filePath), kind: kindFromPath(filePath), data }
+  return toAvatarFile(filePath)
 }
 
 /** Loads the previously picked avatar, if any. */
 export async function loadSavedAvatar(): Promise<AvatarFile | null> {
-  const vrmPath = await readPickedPath()
-  if (!vrmPath) return null
+  const saved = await readPickedConfig()
+  if (!saved) return null
   try {
-    const data = await readFile(vrmPath)
-    return { name: basename(vrmPath), kind: kindFromPath(vrmPath), data }
+    await readFile(saved.path)
+    return {
+      name: basename(dirname(saved.path)) || basename(saved.path),
+      kind: saved.kind,
+      modelUrl: pathToFileURL(saved.path).href
+    }
   } catch {
     return null
   }

@@ -2,9 +2,12 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
   type AssistantReply,
+  type AvatarCollection,
   type AvatarFile,
+  type CatalogAvatar,
   type ModelStatus,
-  type TtsResult
+  type TtsResult,
+  type VroidLink
 } from '../shared/types'
 
 const api = {
@@ -17,6 +20,14 @@ const api = {
     ipcRenderer.invoke(IPC.sttTranscribe, wav),
   pickAvatar: (): Promise<AvatarFile | null> => ipcRenderer.invoke(IPC.avatarPick),
   loadAvatar: (): Promise<AvatarFile | null> => ipcRenderer.invoke(IPC.avatarLoad),
+  catalogCurated: (): Promise<CatalogAvatar[]> => ipcRenderer.invoke(IPC.avatarCatalogCurated),
+  catalogCollections: (): Promise<AvatarCollection[]> =>
+    ipcRenderer.invoke(IPC.avatarCatalogCollections),
+  catalogList: (projectId: string): Promise<CatalogAvatar[]> =>
+    ipcRenderer.invoke(IPC.avatarCatalogList, projectId),
+  catalogVroid: (): Promise<VroidLink[]> => ipcRenderer.invoke(IPC.avatarCatalogVroid),
+  catalogDownload: (modelUrl: string, name: string): Promise<AvatarFile> =>
+    ipcRenderer.invoke(IPC.avatarCatalogDownload, modelUrl, name),
   onStatus: (cb: (status: ModelStatus) => void): (() => void) => {
     const listener = (_e: unknown, status: ModelStatus): void => cb(status)
     ipcRenderer.on(IPC.onStatus, listener)
