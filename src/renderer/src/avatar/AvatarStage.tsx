@@ -15,9 +15,13 @@ export function AvatarStage(): React.JSX.Element {
   const modelUrl = avatarUrl ?? provider.defaultModelUrl
 
   const handleError = useCallback(() => {
+    if (avatarUrl === provider.defaultModelUrl) {
+      console.error(`[avatar] default model failed to load: ${provider.defaultModelUrl}`)
+      return
+    }
     console.warn(`[avatar] ${provider.id} failed — falling back to default model`)
     setAvatar(provider.defaultModelUrl, provider.defaultName, provider.id)
-  }, [provider, setAvatar])
+  }, [avatarUrl, provider, setAvatar])
 
   const View = provider.View
 

@@ -1,11 +1,12 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { IPC, type ModelStatus } from '../shared/types'
+import { IPC, type AvatarLayout, type ModelStatus } from '../shared/types'
 import { initLlm, chat, resetChat, isLlmReady } from './services/llm'
 import { speak } from './services/tts'
 import { transcribe, isSttReady } from './services/stt'
 import { pickAvatar, loadSavedAvatar } from './services/avatar'
+import { loadAvatarLayout, saveAvatarLayout } from './services/avatarLayout'
 import {
   listCollections,
   listCollectionAvatars,
@@ -90,6 +91,10 @@ function registerIpc(): void {
   ipcMain.handle(IPC.avatarCatalogVroid, async () => listVroidLinks())
   ipcMain.handle(IPC.avatarCatalogDownload, async (_e, modelUrl: string, name: string) =>
     downloadCatalogAvatar(modelUrl, name)
+  )
+  ipcMain.handle(IPC.avatarLayoutLoad, async () => loadAvatarLayout())
+  ipcMain.handle(IPC.avatarLayoutSave, async (_e, layout: AvatarLayout) =>
+    saveAvatarLayout(layout)
   )
 }
 

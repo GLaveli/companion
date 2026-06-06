@@ -4,6 +4,7 @@ import {
   type AssistantReply,
   type AvatarCollection,
   type AvatarFile,
+  type AvatarLayout,
   type CatalogAvatar,
   type ModelStatus,
   type TtsResult,
@@ -28,6 +29,9 @@ const api = {
   catalogVroid: (): Promise<VroidLink[]> => ipcRenderer.invoke(IPC.avatarCatalogVroid),
   catalogDownload: (modelUrl: string, name: string): Promise<AvatarFile> =>
     ipcRenderer.invoke(IPC.avatarCatalogDownload, modelUrl, name),
+  loadAvatarLayout: (): Promise<AvatarLayout> => ipcRenderer.invoke(IPC.avatarLayoutLoad),
+  saveAvatarLayout: (layout: AvatarLayout): Promise<void> =>
+    ipcRenderer.invoke(IPC.avatarLayoutSave, layout),
   onStatus: (cb: (status: ModelStatus) => void): (() => void) => {
     const listener = (_e: unknown, status: ModelStatus): void => cb(status)
     ipcRenderer.on(IPC.onStatus, listener)

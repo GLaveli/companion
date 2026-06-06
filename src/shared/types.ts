@@ -44,6 +44,16 @@ export interface AvatarFile {
   modelUrl: string
 }
 
+/** User-tuned Live2D stage framing (persisted in userData). */
+export interface AvatarLayout {
+  /** Horizontal position as fraction of stage width (0..1). */
+  x: number
+  /** Vertical position as fraction of stage height (0..1). */
+  y: number
+  /** Multiplier applied after auto-fit scale. */
+  scaleFactor: number
+}
+
 export interface CatalogAvatar {
   id: string
   name: string
@@ -84,6 +94,8 @@ export const IPC = {
   avatarCatalogList: 'avatar:catalog:list',
   avatarCatalogVroid: 'avatar:catalog:vroid',
   avatarCatalogDownload: 'avatar:catalog:download',
+  avatarLayoutLoad: 'avatar:layout:load',
+  avatarLayoutSave: 'avatar:layout:save',
   // Status events (main -> renderer)
   onStatus: 'app:status'
 } as const

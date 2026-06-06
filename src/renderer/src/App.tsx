@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AvatarGallery } from './components/AvatarGallery'
+import { AvatarLayoutControls } from './components/AvatarLayoutControls'
 import { AvatarStage } from './avatar/AvatarStage'
+import { useAvatarLayout } from './avatar/layoutStore'
 import { getAvatarProvider } from './avatar/registry'
 import { useStore } from './store'
 import { useConversation } from './hooks/useConversation'
@@ -18,7 +20,9 @@ export default function App(): React.JSX.Element {
   const { sendText, startListening, stopListening } = useConversation()
   const [input, setInput] = useState('')
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [layoutOpen, setLayoutOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
+  const hydrateLayout = useAvatarLayout((s) => s.hydrate)
 
   const applyAvatar = (file: AvatarFile | null): void => {
     if (!file) return
@@ -32,13 +36,29 @@ export default function App(): React.JSX.Element {
     window.companion.getStatus().then((s) => useStore.getState().setStatus(s.message, s.llmReady))
 
     void (async () => {
-      const saved = await window.companion.loadAvatar()
-      if (saved) {
-        applyAvatar(saved)
-        return
+      try {
+        const [saved, layout] = await Promise.all([
+          window.companion.loadAvatar(),
+          window.companion.loadAvatarLayout()
+        ])
+        hydrateLayout(layout)
+
+        const provider = getAvatarProvider(null)
+        const isLive2dModel =
+          saved?.kind === 'live2d' && saved.modelUrl.toLowerCase().includes('model3.json')
+
+        if (saved && isLive2dModel) {
+          applyAvatar(saved)
+        } else {
+          useStore.getState().setAvatar(
+            provider.defaultModelUrl,
+            provider.defaultName,
+            provider.id
+          )
+        }
+      } catch (err) {
+        console.error('[app] init failed:', err)
       }
-      const provider = getAvatarProvider(null)
-      useStore.getState().setAvatar(provider.defaultModelUrl, provider.defaultName, provider.id)
     })()
 
     return off
@@ -69,6 +89,15 @@ export default function App(): React.JSX.Element {
       <div className="stage">
         <AvatarStage />
         <div className="badge">{PHASE_LABEL[phase]}</div>
+        <button
+          type="button"
+          className={`layout-toggle ${layoutOpen ? 'active' : ''}`}
+          onClick={() => setLayoutOpen((v) => !v)}
+          title="Ajustar posicao do avatar"
+        >
+          Posicao
+        </button>
+        <AvatarLayoutControls open={layoutOpen} onClose={() => setLayoutOpen(false)} />
       </div>
 
       <aside className="panel">
