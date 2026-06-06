@@ -8,7 +8,7 @@
 
 Companion de desktop com **IA local**: avatar **Live2D** animado, chat por texto ou microfone, voz feminina em pt-BR e lip-sync. Roda no seu computador (Windows e macOS).
 
-![Tela principal — avatar Live2D, chat e controles de galeria/voz](Screenshot/01.png)
+![Tela principal — avatar Live2D, chat, menu de ferramentas e painel de status](Screenshot/01.png)
 
 ## Funcionalidades
 
@@ -16,7 +16,12 @@ Companion de desktop com **IA local**: avatar **Live2D** animado, chat por texto
 - **Cérebro local** — LLM em GGUF (`node-llama-cpp`), com busca na web quando precisa de fatos atuais
 - **Voz da Lotus** — perfil *Lotus (natural)* via Edge TTS (Francisca / Thalita); preview anime opcional com GPT-SoVITS
 - **Lip-sync e corpo** — boca sincronizada com o áudio; idle e gestos nos modelos oficiais
-- **Posição** — ajuste onde o avatar aparece na tela (persistido)
+- **Menu de ferramentas** — botão ⚙ no canto da stage abre **Galeria**, **Voz**, **Animação** e **Posição** (painéis flutuantes abaixo do menu)
+- **Animação / olhar** — em *Animação*, escolha no máximo uma opção:
+  - **Seguir o mouse**
+  - **Olhar para o chat** (enquanto digita; volta ao neutro ao enviar)
+  - **Olhar para você** — rastreamento facial pela câmera (MediaPipe, processamento local)
+- **Painel lateral** — avatar e voz ativos, uso de **CPU/RAM** (Lotus ou sistema) e indicador **IA pronta**
 
 ## Começar
 
@@ -27,7 +32,7 @@ npm run setup:live2d    # Hiyori, Mao e Cubism Core
 npm run dev
 ```
 
-Na primeira execução, aguarde o indicador **IA pronta** (bolinha verde) antes de conversar. Passe o mouse sobre o chip para ver qual modelo está carregado.
+Na primeira execução, aguarde o indicador **IA pronta** (bolinha verde) antes de conversar. Passe o mouse sobre o chip para ver detalhes do modelo carregado.
 
 ### Voz anime (opcional)
 
@@ -63,7 +68,7 @@ npm run dist:mac   # macOS
 
 ```
 src/main/       Electron, LLM, TTS, STT, IPC
-src/renderer/   React, Live2D, chat e áudio
+src/renderer/   React, Live2D, chat, face tracking e áudio
 src/shared/     Tipos e contratos IPC
 models/         LLM, whisper e voz (não versionados)
 Screenshot/     Capturas para documentação
@@ -72,5 +77,6 @@ Screenshot/     Capturas para documentação
 ## Observações
 
 - **Voz Edge TTS** — melhor qualidade online; offline cai para voz do sistema (Web Speech).
+- **Olhar pela câmera** — exige permissão de câmera; nenhum vídeo é enviado para a internet.
 - **Microfone / STT** — whisper em integração; preferir texto se a transcrição falhar no seu ambiente.
 - Modelos Live2D oficiais são material gratuito Live2D (uso não comercial). Ver licença de cada modelo externo.
