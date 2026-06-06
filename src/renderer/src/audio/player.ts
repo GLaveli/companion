@@ -63,27 +63,55 @@ export async function playWithAnalyser(audioUrl: string): Promise<Playback> {
 
 /** Offline fallback voice using the browser's built-in speech synthesis. */
 export function speakWithWebSpeech(text: string): Promise<void> {
-  return new Promise((resolve) => {
-    if (!('speechSynthesis' in window)) return resolve()
-    const utter = new SpeechSynthesisUtterance(text)
-    utter.lang = 'pt-BR'
-    const voices = window.speechSynthesis.getVoices()
-    const ptFemale =
-      voices.find((v) => v.lang.startsWith('pt') && /female|maria|luciana|fernanda/i.test(v.name)) ||
-      voices.find((v) => v.lang.startsWith('pt'))
-    if (ptFemale) utter.voice = ptFemale
+  return speakWithWebSpeechCancellable(text).done
+}
 
-    // Drive a synthetic mouth movement since this audio bypasses the analyser.
-    const timer = window.setInterval(() => {
-      lipSyncState.manual = 0.2 + Math.random() * 0.6
-    }, 90)
-    const stop = (): void => {
-      window.clearInterval(timer)
-      lipSyncState.manual = null
-      resolve()
-    }
-    utter.onend = stop
-    utter.onerror = stop
-    window.speechSynthesis.speak(utter)
+export function speakWithWebSpeechCancellable(text: string): Playback {
+  if (!('speechSynthesis' in window)) {
+    return { analyser: null as unknown as AnalyserNode, done: Promise.resolve(), stop: () => {} }
+  }
+
+  const utter = new SpeechSynthesisUtterance(text)
+  utter.lang = 'pt-BR'
+  const voices = window.speechSynthesis.getVoices()
+  const ptFemale =
+    voices.find((v) => v.lang.startsWith('pt') && /female|maria|luciana|fernanda/i.test(v.name)) ||
+    voices.find((v) => v.lang.startsWith('pt'))
+  if (ptFemale) utter.voice = ptFemale
+
+  let finished = false
+  const timer = window.setInterval(() => {
+    lipSyncState.manual = 0.2 + Math.random() * 0.6
+  }, 90)
+
+  let resolveDone!: () => void
+  const done = new Promise<void>((resolve) => {
+    resolveDone = resolve
   })
+
+  const cleanup = (): void => {
+    window.clearInterval(timer)
+    lipSyncState.manual = null
+  }
+
+  const finish = (): void => {
+    if (finished) return
+    finished = true
+    cleanup()
+    resolveDone()
+  }
+
+  utter.onend = finish
+  utter.onerror = finish
+  window.speechSynthesis.speak(utter)
+
+  return {
+    analyser: null as unknown as AnalyserNode,
+    done,
+    stop: () => {
+      if (finished) return
+      window.speechSynthesis.cancel()
+      finish()
+    }
+  }
 }

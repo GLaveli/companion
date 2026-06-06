@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { useStore } from '../store'
 import { MicRecorder } from '../audio/recorder'
-import { speakText } from '../audio/speakText'
+import { speakText, speakResearchFillers } from '../audio/speakText'
 
 export function useConversation(): {
   sendText: (text: string) => Promise<void>
@@ -37,16 +37,21 @@ export function useConversation(): {
         if (plan.needsResearch && plan.preamble) {
           addMessage({ role: 'assistant', content: plan.preamble })
 
-          const researchPromise = window.companion.chatResearch(trimmed, plan.preamble)
-          await speak(plan.preamble, 'thinking')
+          setPhase('speaking')
+          setSpeaking(true)
+          try {
+            const researchPromise = window.companion.chatResearch(trimmed, plan.preamble)
 
-          setPhase('thinking')
-          setEmotion('thinking')
-          const followUp = await researchPromise
+            await speakText(plan.preamble, 'thinking')
+            await speakResearchFillers(researchPromise, trimmed, 'thinking')
 
-          addMessage({ role: 'assistant', content: followUp.text })
-          setEmotion(followUp.emotion)
-          await speak(followUp.text, followUp.emotion)
+            const followUp = await researchPromise
+            addMessage({ role: 'assistant', content: followUp.text })
+            setEmotion(followUp.emotion)
+            await speakText(followUp.text, followUp.emotion)
+          } finally {
+            setSpeaking(false)
+          }
         } else {
           const reply = await window.companion.chat(trimmed)
           addMessage({ role: 'assistant', content: reply.text })

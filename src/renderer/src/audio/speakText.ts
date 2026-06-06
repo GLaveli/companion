@@ -1,5 +1,6 @@
 import type { Emotion, TtsResult } from '../../../shared/types'
-import { playWithAnalyser, speakWithWebSpeech } from './player'
+import { pickResearchFiller } from './researchFiller'
+import { playWithAnalyser, speakWithWebSpeechCancellable, type Playback } from './player'
 
 /** Splits assistant text into TTS-sized chunks (sentences / clauses). */
 export function splitSpeechChunks(text: string, maxLen = 200): string[] {
@@ -38,13 +39,16 @@ export function splitSpeechChunks(text: string, maxLen = 200): string[] {
   return out
 }
 
-async function playTtsResult(tts: TtsResult, fallbackText: string): Promise<void> {
+async function startSpeech(tts: TtsResult, fallbackText: string): Promise<Playback> {
   if (tts.audioUrl && !tts.useWebSpeechFallback) {
-    const playback = await playWithAnalyser(tts.audioUrl)
-    await playback.done
-    return
+    return playWithAnalyser(tts.audioUrl)
   }
-  await speakWithWebSpeech(fallbackText)
+  return speakWithWebSpeechCancellable(fallbackText)
+}
+
+async function playTtsResult(tts: TtsResult, fallbackText: string): Promise<void> {
+  const playback = await startSpeech(tts, fallbackText)
+  await playback.done
 }
 
 /**
@@ -68,5 +72,41 @@ export async function speakText(text: string, emotion: Emotion = 'neutral'): Pro
       prefetch = window.companion.speak(chunks[i + 1], emotion)
     }
     await playTtsResult(tts, chunk)
+  }
+}
+
+/**
+ * Keeps speaking short curiosities until `researchPromise` settles.
+ * Stops the current line immediately when research finishes.
+ */
+export async function speakResearchFillers<T>(
+  researchPromise: Promise<T>,
+  userText: string,
+  emotion: Emotion = 'thinking'
+): Promise<void> {
+  let settled = false
+  void researchPromise.finally(() => {
+    settled = true
+  })
+
+  const used = new Set<number>()
+
+  while (!settled) {
+    const filler = pickResearchFiller(userText, used)
+    const tts = await window.companion.speak(filler, emotion)
+
+    if (settled) return
+
+    const playback = await startSpeech(tts, filler)
+
+    await Promise.race([
+      researchPromise,
+      playback.done.then(() => 'filler' as const)
+    ])
+
+    if (settled) {
+      playback.stop()
+      return
+    }
   }
 }
