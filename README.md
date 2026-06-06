@@ -26,7 +26,9 @@ npm run setup:live2d
 npm run dev
 ```
 
-Só isso já basta para conversar com a Lotus — avatar, IA local, voz *Lotus (natural) · Francisca* e lip-sync. Aguarde o indicador **IA pronta** (bolinha verde) antes de mandar mensagens.
+Só isso já basta para conversar com a Lotus — avatar e IA local. Aguarde o indicador **IA pronta** (bolinha verde) antes de mandar mensagens.
+
+![Indicador IA pronta — bolinha verde no painel](Screenshot/02.png)
 
 ## Funcionalidades
 
@@ -34,9 +36,20 @@ Só isso já basta para conversar com a Lotus — avatar, IA local, voz *Lotus (
 - **Cérebro local** — LLM em GGUF (`node-llama-cpp`), com busca na web quando precisa de fatos atuais
 - **Voz da Lotus** — *Lotus (natural) · Francisca* via Edge TTS (já incluída; sem setup extra)
 - **Lip-sync e corpo** — boca sincronizada com o áudio; idle e gestos nos modelos oficiais
-- **Menu de ferramentas** — botão ⚙ na stage: **Galeria**, **Voz**, **Animação** e **Posição**
 - **Animação / olhar** — seguir mouse, olhar para o chat ou olhar para você (câmera)
 - **Painel lateral** — avatar, voz, **CPU/RAM** e status da IA
+
+### Menu de ferramentas (⚙)
+
+Botão no canto da stage — abre **Galeria**, **Voz**, **Animação** e **Posição**:
+
+| Galeria | Voz |
+|:---:|:---:|
+| ![Galeria de avatares Live2D](Screenshot/avatar.png) | ![Painel de voz da Lotus](Screenshot/voice.png) |
+
+| Animação | Posição |
+|:---:|:---:|
+| ![Opções de olhar e animação](Screenshot/eye.png) | ![Ajuste de posição do avatar](Screenshot/position.png) |
 
 ---
 
@@ -54,7 +67,7 @@ A voz padrão **não** usa GPT-SoVITS nem `setup:voice-ref`. Ela já vem com o a
 
 ### Voz anime — *Hiyori (preview)* (opcional)
 
-Somente se quiser **experimentar** voz estilo anime. **Não** é a Francisca.
+Somente se quiser **experimentar** voz estilo anime.
 
 ```bash
 npm run setup:voice-ref
