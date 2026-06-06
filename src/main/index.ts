@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { IPC, type AvatarFile, type AvatarLayout, type EdgeVoiceSettings, type ModelStatus } from '../shared/types'
+import { IPC, type AvatarAnimationSettings, type AvatarFile, type AvatarLayout, type EdgeVoiceSettings, type ModelStatus } from '../shared/types'
 import { VOICE_PREVIEW_LINE } from '../shared/voiceText'
 import { initLlm, chat, chatPlan, chatResearch, resetChat, isLlmReady } from './services/llm'
 import { getGptSoVitsStatus, previewEdgeVoice, speak } from './services/tts'
@@ -11,6 +11,7 @@ import { getEdgeVoiceSettings, saveEdgeVoiceSettings } from './services/edgeVoic
 import { transcribe, isSttReady } from './services/stt'
 import { pickAvatar, loadSavedAvatar, saveAvatarSelection } from './services/avatar'
 import { loadAvatarLayout, saveAvatarLayout } from './services/avatarLayout'
+import { loadAvatarAnimation, saveAvatarAnimation } from './services/avatarAnimation'
 import {
   listCollections,
   listCollectionAvatars,
@@ -132,6 +133,10 @@ function registerIpc(): void {
   ipcMain.handle(IPC.avatarLayoutLoad, async () => loadAvatarLayout())
   ipcMain.handle(IPC.avatarLayoutSave, async (_e, layout: AvatarLayout) =>
     saveAvatarLayout(layout)
+  )
+  ipcMain.handle(IPC.avatarAnimationLoad, async () => loadAvatarAnimation())
+  ipcMain.handle(IPC.avatarAnimationSave, async (_e, settings: AvatarAnimationSettings) =>
+    saveAvatarAnimation(settings)
   )
 }
 

@@ -35,7 +35,10 @@ export function AvatarLayoutControls({
       </p>
 
       <label className="layout-row">
-        <span>Vertical</span>
+        <div className="layout-row-head">
+          <span>Vertical</span>
+          <em>{pct(y)}</em>
+        </div>
         <div className="layout-stepper">
           <button type="button" onClick={() => setLayout({ y: y - STEP })}>
             −
@@ -52,11 +55,13 @@ export function AvatarLayoutControls({
             +
           </button>
         </div>
-        <em>{pct(y)}</em>
       </label>
 
       <label className="layout-row">
-        <span>Horizontal</span>
+        <div className="layout-row-head">
+          <span>Horizontal</span>
+          <em>{pct(x)}</em>
+        </div>
         <div className="layout-stepper">
           <button type="button" onClick={() => setLayout({ x: x - STEP })}>
             −
@@ -73,11 +78,13 @@ export function AvatarLayoutControls({
             +
           </button>
         </div>
-        <em>{pct(x)}</em>
       </label>
 
       <label className="layout-row">
-        <span>Tamanho</span>
+        <div className="layout-row-head">
+          <span>Tamanho</span>
+          <em>{pct(scaleFactor)}</em>
+        </div>
         <div className="layout-stepper">
           <button type="button" onClick={() => setLayout({ scaleFactor: scaleFactor - STEP })}>
             −
@@ -94,7 +101,6 @@ export function AvatarLayoutControls({
             +
           </button>
         </div>
-        <em>{pct(scaleFactor)}</em>
       </label>
 
       <div className="layout-actions">

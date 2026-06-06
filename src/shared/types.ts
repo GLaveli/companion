@@ -104,6 +104,14 @@ export interface AvatarFile {
   modelUrl: string
 }
 
+/** Live2D eye-gaze behaviour (mutually exclusive modes). */
+export type AvatarGazeMode = 'none' | 'mouse' | 'chat'
+
+/** Persisted Live2D animation toggles. */
+export interface AvatarAnimationSettings {
+  gazeMode: AvatarGazeMode
+}
+
 /** User-tuned Live2D stage framing (persisted in userData). */
 export interface AvatarLayout {
   /** Horizontal position as fraction of stage width (0..1). */
@@ -173,6 +181,8 @@ export const IPC = {
   avatarCatalogDownload: 'avatar:catalog:download',
   avatarLayoutLoad: 'avatar:layout:load',
   avatarLayoutSave: 'avatar:layout:save',
+  avatarAnimationLoad: 'avatar:animation:load',
+  avatarAnimationSave: 'avatar:animation:save',
   // Status events (main -> renderer)
   onStatus: 'app:status'
 } as const

@@ -8,6 +8,7 @@ import { useAvatarLayout } from '../../layoutStore'
 import type { AvatarDriver, AvatarViewProps } from '../../types'
 import { createLive2DDriver } from './createLive2DDriver'
 import { layoutLive2DModel, measureLive2DBase, type Live2DBaseSize } from './config'
+import { clearMouseClient, setGazeContext, updateMouseClient } from './gaze'
 
 function waitForCubismCore(timeoutMs = 8000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -68,7 +69,28 @@ export function Live2DView({ modelUrl, onError, onReady }: AvatarViewProps): Rea
 
       app.renderer.resize(size.w, size.h)
       layoutLive2DModel(model, size.w, size.h, useAvatarLayout.getState(), base)
+
+      setGazeContext({
+        stageRect: host.getBoundingClientRect(),
+        layout: useAvatarLayout.getState(),
+        base,
+        stageW: size.w,
+        stageH: size.h
+      })
     }
+
+    const onMouseMove = (e: MouseEvent): void => {
+      updateMouseClient(e.clientX, e.clientY)
+    }
+    const onMouseLeave = (): void => {
+      clearMouseClient()
+    }
+    const onWindowBlur = (): void => {
+      clearMouseClient()
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseleave', onMouseLeave)
+    window.addEventListener('blur', onWindowBlur)
 
     const onTick = (): void => {
       driverRef.current?.update(buildAvatarDriverInput(Ticker.shared.deltaMS / 1000))
@@ -123,6 +145,11 @@ export function Live2DView({ modelUrl, onError, onReady }: AvatarViewProps): Rea
     return () => {
       disposed = true
       cancelAnimationFrame(resizeFrame)
+      window.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseleave', onMouseLeave)
+      window.removeEventListener('blur', onWindowBlur)
+      setGazeContext(null)
+      clearMouseClient()
       Ticker.shared.remove(onTick)
       resizeObserver?.disconnect()
       driverRef.current?.dispose()

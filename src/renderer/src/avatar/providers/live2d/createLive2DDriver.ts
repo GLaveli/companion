@@ -1,6 +1,7 @@
 import type { Live2DModel } from 'pixi-live2d-display-lipsyncpatch/cubism4'
 import { currentVolume } from '../../../audio/lipsync'
 import type { AvatarDriver, AvatarDriverInput } from '../../types'
+import { NEUTRAL_GAZE, resolveGazeTarget } from './gaze'
 
 type MotionModel = Live2DModel & {
   motion: (group: string, index?: number | null, priority?: number) => void
@@ -25,6 +26,14 @@ export function createLive2DDriver(model: Live2DModel): AvatarDriver {
   let idleStarted = false
   let gestureCooldown = 0
   let smoothMouth = 0
+  let smoothEyeX = 0
+  let smoothEyeY = 0
+  let smoothAngleX = 0
+  let smoothAngleY = 0
+  let frameDelta = 1 / 60
+
+  const lerpFactor = (speed: number): number =>
+    1 - Math.exp(-speed * Math.min(frameDelta, 0.05))
 
   const applyLipSync = (): void => {
     const target = currentVolume()
@@ -36,8 +45,42 @@ export function createLive2DDriver(model: Live2DModel): AvatarDriver {
     }
   }
 
+  const applyGaze = (): void => {
+    const target = resolveGazeTarget()
+    const goal = target ?? NEUTRAL_GAZE
+    const releasing = !target
+    const blend = lerpFactor(releasing ? 4.2 : 11)
+
+    smoothEyeX += (goal.eyeX - smoothEyeX) * blend
+    smoothEyeY += (goal.eyeY - smoothEyeY) * blend
+    smoothAngleX += ((goal.angleX ?? 0) - smoothAngleX) * blend
+    smoothAngleY += ((goal.angleY ?? 0) - smoothAngleY) * blend
+
+    const eyeMag = Math.hypot(smoothEyeX, smoothEyeY)
+    const headMag = Math.hypot(smoothAngleX, smoothAngleY)
+    const nearNeutral = eyeMag < 0.025 && headMag < 0.6
+
+    if (releasing && nearNeutral) {
+      smoothEyeX = 0
+      smoothEyeY = 0
+      smoothAngleX = 0
+      smoothAngleY = 0
+      return
+    }
+
+    internal.coreModel.addParameterValueById('ParamEyeBallX', smoothEyeX, 0.9)
+    internal.coreModel.addParameterValueById('ParamEyeBallY', smoothEyeY, 0.92)
+    internal.coreModel.addParameterValueById('ParamAngleX', smoothAngleX, 0.3)
+    internal.coreModel.addParameterValueById('ParamAngleY', smoothAngleY, 0.3)
+  }
+
+  const beforeModelUpdate = (): void => {
+    applyLipSync()
+    applyGaze()
+  }
+
   // Apply after idle/motion updates so the mouth is not overwritten each frame.
-  internal.on('beforeModelUpdate', applyLipSync)
+  internal.on('beforeModelUpdate', beforeModelUpdate)
 
   const startIdle = (): void => {
     if (idleStarted) return
@@ -51,6 +94,7 @@ export function createLive2DDriver(model: Live2DModel): AvatarDriver {
 
   return {
     update(input: AvatarDriverInput) {
+      frameDelta = input.delta > 0 ? input.delta : 1 / 60
       startIdle()
 
       gestureCooldown -= input.delta
@@ -65,9 +109,13 @@ export function createLive2DDriver(model: Live2DModel): AvatarDriver {
     },
 
     dispose() {
-      internal.off('beforeModelUpdate', applyLipSync)
+      internal.off('beforeModelUpdate', beforeModelUpdate)
       idleStarted = false
       smoothMouth = 0
+      smoothEyeX = 0
+      smoothEyeY = 0
+      smoothAngleX = 0
+      smoothAngleY = 0
     }
   }
 }

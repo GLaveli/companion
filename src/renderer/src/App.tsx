@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AvatarGallery } from './components/AvatarGallery'
+import { AnimationControls } from './components/AnimationControls'
 import { AvatarLayoutControls } from './components/AvatarLayoutControls'
+import { StageToolbar } from './components/StageToolbar'
 import { VoiceControls } from './components/VoiceControls'
 import { AvatarStage } from './avatar/AvatarStage'
 import { flushAvatarLayoutSave, useAvatarLayout } from './avatar/layoutStore'
+import { flushAvatarAnimationSave, useAvatarAnimation } from './avatar/animationStore'
 import { getAvatarProvider } from './avatar/registry'
 import { useStore } from './store'
 import { useConversation } from './hooks/useConversation'
@@ -27,7 +30,7 @@ function formatLlmStatus(
   if (ready) {
     return {
       shortLabel: 'IA pronta',
-      detail: modelName ? `Pronta para conversar · ${modelName}` : 'Pronta para conversar.',
+      detail: modelName ?? '',
       tooltip: modelName
         ? `Verde: modelo de IA local carregado (${modelName}). A Lotus pode responder no chat.`
         : 'Verde: cérebro da Lotus carregado e pronto para conversar.'
@@ -47,12 +50,15 @@ export default function App(): React.JSX.Element {
   const { sendText, startListening, stopListening } = useConversation()
   const [input, setInput] = useState('')
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [animationOpen, setAnimationOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [avatarReady, setAvatarReady] = useState(false)
   const [voiceLabel, setVoiceLabel] = useState({ short: 'Lotus (natural) · Francisca', title: '' })
   const listRef = useRef<HTMLDivElement>(null)
   const hydrateLayout = useAvatarLayout((s) => s.hydrate)
+  const hydrateAnimation = useAvatarAnimation((s) => s.hydrate)
+  const setChatTyping = useAvatarAnimation((s) => s.setChatTyping)
 
   const refreshVoiceLabel = useCallback(async (): Promise<void> => {
     try {
@@ -73,13 +79,19 @@ export default function App(): React.JSX.Element {
     })
     window.companion.getStatus().then((s) => useStore.getState().setStatus(s.message, s.llmReady))
 
-    const onUnload = (): void => flushAvatarLayoutSave()
+    const onUnload = (): void => {
+      flushAvatarLayoutSave()
+      flushAvatarAnimationSave()
+    }
     window.addEventListener('beforeunload', onUnload)
 
     void (async () => {
       try {
         const layout = await window.companion.loadAvatarLayout()
         hydrateLayout(layout)
+
+        const animation = await window.companion.loadAvatarAnimation()
+        hydrateAnimation(animation)
 
         const saved = await window.companion.loadAvatar()
         const provider = getAvatarProvider(null)
@@ -115,6 +127,10 @@ export default function App(): React.JSX.Element {
   }, [voiceOpen, refreshVoiceLabel])
 
   useEffect(() => {
+    setChatTyping(input.trim().length > 0)
+  }, [input, setChatTyping])
+
+  useEffect(() => {
     const el = listRef.current
     if (!el) return
     const scrollToBottom = (): void => {
@@ -143,15 +159,24 @@ export default function App(): React.JSX.Element {
       <div className="stage">
         {avatarReady ? <AvatarStage /> : null}
         <div className="badge">{PHASE_LABEL[phase]}</div>
-        <button
-          type="button"
-          className={`layout-toggle ${layoutOpen ? 'active' : ''}`}
-          onClick={() => setLayoutOpen((v) => !v)}
-          title="Ajustar posição do avatar"
-        >
-          Posição
-        </button>
-        <AvatarLayoutControls open={layoutOpen} onClose={() => setLayoutOpen(false)} />
+
+        <div className="stage-tools-dock">
+          <StageToolbar
+            voiceOpen={voiceOpen}
+            layoutOpen={layoutOpen}
+            onGallery={() => setGalleryOpen(true)}
+            onVoice={() => setVoiceOpen((v) => !v)}
+            onAnimation={() => setAnimationOpen(true)}
+            onLayout={() => setLayoutOpen((v) => !v)}
+          />
+
+          <AvatarLayoutControls open={layoutOpen} onClose={() => setLayoutOpen(false)} />
+          <VoiceControls
+            open={voiceOpen}
+            onClose={() => setVoiceOpen(false)}
+            onVoiceChange={() => void refreshVoiceLabel()}
+          />
+        </div>
       </div>
 
       <aside className="panel">
@@ -168,36 +193,22 @@ export default function App(): React.JSX.Element {
               <span className="llm-indicator-tip">{llmStatus.tooltip}</span>
             </button>
           </header>
-          <p className="status">{llmStatus.detail}</p>
+          {llmStatus.detail ? <p className="status">{llmStatus.detail}</p> : null}
 
-          <div className="avatar-bar">
-            <div className="avatar-bar-group">
-              <button type="button" className="avatar-btn primary" onClick={() => setGalleryOpen(true)}>
-                Galeria
-              </button>
-              <span className="avatar-bar-label" title={avatarName ?? provider.defaultName}>
+          <div className="panel-meta" role="group" aria-label="Avatar e voz ativos">
+            <p className="panel-meta-line">
+              <span className="panel-meta-label">Avatar</span>
+              <span className="panel-meta-value" title={avatarName ?? provider.defaultName}>
                 {avatarName ?? provider.defaultName}
               </span>
-            </div>
-            <div className="avatar-bar-group">
-              <button
-                type="button"
-                className={`avatar-btn ${voiceOpen ? 'active' : ''}`}
-                onClick={() => setVoiceOpen((v) => !v)}
-              >
-                Voz
-              </button>
-              <span className="avatar-bar-label" title={voiceLabel.title || voiceLabel.short}>
+            </p>
+            <p className="panel-meta-line">
+              <span className="panel-meta-label">Voz</span>
+              <span className="panel-meta-value" title={voiceLabel.title || voiceLabel.short}>
                 {voiceLabel.short}
               </span>
-            </div>
+            </p>
           </div>
-
-          <VoiceControls
-            open={voiceOpen}
-            onClose={() => setVoiceOpen(false)}
-            onVoiceChange={() => void refreshVoiceLabel()}
-          />
         </div>
 
         <div className="messages" ref={listRef}>
@@ -242,6 +253,7 @@ export default function App(): React.JSX.Element {
         onClose={() => setGalleryOpen(false)}
         onSelect={applyAvatar}
       />
+      <AnimationControls open={animationOpen} onClose={() => setAnimationOpen(false)} />
     </div>
   )
 }

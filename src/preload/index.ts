@@ -7,6 +7,7 @@ import {
   type AvatarCollection,
   type AvatarFile,
   type AvatarLayout,
+  type AvatarAnimationSettings,
   type CatalogAvatar,
   type CatalogAvatarEntry,
   type EdgeVoiceSettings,
@@ -53,6 +54,10 @@ const api = {
   loadAvatarLayout: (): Promise<AvatarLayout> => ipcRenderer.invoke(IPC.avatarLayoutLoad),
   saveAvatarLayout: (layout: AvatarLayout): Promise<void> =>
     ipcRenderer.invoke(IPC.avatarLayoutSave, layout),
+  loadAvatarAnimation: (): Promise<AvatarAnimationSettings> =>
+    ipcRenderer.invoke(IPC.avatarAnimationLoad),
+  saveAvatarAnimation: (settings: AvatarAnimationSettings): Promise<void> =>
+    ipcRenderer.invoke(IPC.avatarAnimationSave, settings),
   onStatus: (cb: (status: ModelStatus) => void): (() => void) => {
     const listener = (_e: unknown, status: ModelStatus): void => cb(status)
     ipcRenderer.on(IPC.onStatus, listener)
