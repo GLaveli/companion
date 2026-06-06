@@ -40,11 +40,13 @@ export function Live2DView({ modelUrl, onError, onReady }: AvatarViewProps): Rea
   const baseRef = useRef<Live2DBaseSize | null>(null)
   const appRef = useRef<Application | null>(null)
   const driverRef = useRef<AvatarDriver | null>(null)
+  const hydrated = useAvatarLayout((s) => s.hydrated)
   const layout = useAvatarLayout(
     useShallow((s) => ({ x: s.x, y: s.y, scaleFactor: s.scaleFactor }))
   )
 
   useEffect(() => {
+    if (!hydrated) return
     const host = hostRef.current
     if (!host) return
 
@@ -140,9 +142,10 @@ export function Live2DView({ modelUrl, onError, onReady }: AvatarViewProps): Rea
       host.replaceChildren()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modelUrl, onError, onReady])
+  }, [modelUrl, onError, onReady, hydrated])
 
   useEffect(() => {
+    if (!hydrated) return
     const host = hostRef.current
     const model = modelRef.current
     const base = baseRef.current
@@ -153,8 +156,8 @@ export function Live2DView({ modelUrl, onError, onReady }: AvatarViewProps): Rea
     if (!size) return
 
     app.renderer.resize(size.w, size.h)
-    layoutLive2DModel(model, size.w, size.h, layout, base)
-  }, [layout.x, layout.y, layout.scaleFactor])
+    layoutLive2DModel(model, size.w, size.h, useAvatarLayout.getState(), base)
+  }, [hydrated, layout.x, layout.y, layout.scaleFactor])
 
   return <div ref={hostRef} className="avatar-canvas-host" />
 }

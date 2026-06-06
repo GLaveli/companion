@@ -26,8 +26,8 @@ export async function playWithAnalyser(audioUrl: string): Promise<Playback> {
 
   const source = audioCtx.createMediaElementSource(audio)
   const analyser = audioCtx.createAnalyser()
-  analyser.fftSize = 1024
-  analyser.smoothingTimeConstant = 0.5
+  analyser.fftSize = 512
+  analyser.smoothingTimeConstant = 0.35
   source.connect(analyser)
   analyser.connect(audioCtx.destination)
 

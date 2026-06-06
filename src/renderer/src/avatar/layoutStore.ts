@@ -4,8 +4,6 @@ import { AVATAR_LAYOUT_LIMITS, clampLayoutValue } from './layoutLimits'
 
 const DEFAULT_LAYOUT: AvatarLayout = { x: 0.46, y: 0.98, scaleFactor: 0.9 }
 
-let saveTimer: ReturnType<typeof setTimeout> | null = null
-
 interface LayoutState extends AvatarLayout {
   hydrated: boolean
   setLayout: (patch: Partial<AvatarLayout>) => void
@@ -13,14 +11,19 @@ interface LayoutState extends AvatarLayout {
   hydrate: (layout: AvatarLayout) => void
 }
 
-function scheduleSave(layout: AvatarLayout): void {
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    void window.companion.saveAvatarLayout(layout)
-  }, 250)
+function persistLayout(layout: AvatarLayout): void {
+  void window.companion.saveAvatarLayout(layout).catch((err) => {
+    console.warn('[layout] save failed:', err)
+  })
 }
 
-export const useAvatarLayout = create<LayoutState>((set, get) => ({
+export function flushAvatarLayoutSave(): void {
+  const { hydrated, x, y, scaleFactor } = useAvatarLayout.getState()
+  if (!hydrated) return
+  persistLayout({ x, y, scaleFactor })
+}
+
+export const useAvatarLayout = create<LayoutState>((set) => ({
   ...DEFAULT_LAYOUT,
   hydrated: false,
 
@@ -31,15 +34,21 @@ export const useAvatarLayout = create<LayoutState>((set, get) => ({
         y: clampLayoutValue('y', patch.y ?? s.y),
         scaleFactor: clampLayoutValue('scaleFactor', patch.scaleFactor ?? s.scaleFactor)
       }
-      scheduleSave(next)
+      persistLayout(next)
       return next
     })
   },
 
   resetLayout: () => {
     set({ ...DEFAULT_LAYOUT })
-    scheduleSave(DEFAULT_LAYOUT)
+    persistLayout(DEFAULT_LAYOUT)
   },
 
-  hydrate: (layout) => set({ ...layout, hydrated: true })
+  hydrate: (layout) =>
+    set({
+      x: clampLayoutValue('x', layout.x),
+      y: clampLayoutValue('y', layout.y),
+      scaleFactor: clampLayoutValue('scaleFactor', layout.scaleFactor),
+      hydrated: true
+    })
 }))

@@ -24,6 +24,6 @@ export function currentVolume(): number {
     sum += v * v
   }
   const rms = Math.sqrt(sum / buffer.length)
-  // Boost a bit so normal speech opens the mouth visibly.
-  return Math.min(1, rms * 2.5)
+  // Boost so normal speech opens the mouth visibly on Live2D.
+  return Math.min(1, rms * 3.2)
 }

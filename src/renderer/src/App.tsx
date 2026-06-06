@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AvatarGallery } from './components/AvatarGallery'
 import { AvatarLayoutControls } from './components/AvatarLayoutControls'
 import { AvatarStage } from './avatar/AvatarStage'
-import { useAvatarLayout } from './avatar/layoutStore'
+import { flushAvatarLayoutSave, useAvatarLayout } from './avatar/layoutStore'
 import { getAvatarProvider } from './avatar/registry'
 import { useStore } from './store'
 import { useConversation } from './hooks/useConversation'
@@ -21,6 +21,7 @@ export default function App(): React.JSX.Element {
   const [input, setInput] = useState('')
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
+  const [avatarReady, setAvatarReady] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const hydrateLayout = useAvatarLayout((s) => s.hydrate)
 
@@ -35,14 +36,15 @@ export default function App(): React.JSX.Element {
     })
     window.companion.getStatus().then((s) => useStore.getState().setStatus(s.message, s.llmReady))
 
+    const onUnload = (): void => flushAvatarLayoutSave()
+    window.addEventListener('beforeunload', onUnload)
+
     void (async () => {
       try {
-        const [saved, layout] = await Promise.all([
-          window.companion.loadAvatar(),
-          window.companion.loadAvatarLayout()
-        ])
+        const layout = await window.companion.loadAvatarLayout()
         hydrateLayout(layout)
 
+        const saved = await window.companion.loadAvatar()
         const provider = getAvatarProvider(null)
         const isLive2dModel =
           saved?.kind === 'live2d' && saved.modelUrl.toLowerCase().includes('model3.json')
@@ -56,12 +58,17 @@ export default function App(): React.JSX.Element {
             provider.id
           )
         }
+        setAvatarReady(true)
       } catch (err) {
         console.error('[app] init failed:', err)
+        setAvatarReady(true)
       }
     })()
 
-    return off
+    return () => {
+      off()
+      window.removeEventListener('beforeunload', onUnload)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -87,7 +94,7 @@ export default function App(): React.JSX.Element {
   return (
     <div className="app">
       <div className="stage">
-        <AvatarStage />
+        {avatarReady ? <AvatarStage /> : null}
         <div className="badge">{PHASE_LABEL[phase]}</div>
         <button
           type="button"
