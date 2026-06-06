@@ -451,11 +451,24 @@ body,
   gap: 12px;
 }
 
+.panel-top,
+.composer {
+  flex-shrink: 0;
+}
+
+.panel-top {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .panel-header,
 .status,
 .avatar-bar,
-.voice-controls,
-.composer {
+.voice-controls {
   flex-shrink: 0;
 }
 
@@ -472,6 +485,72 @@ body,
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+.llm-indicator {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px 4px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: help;
+}
+
+.llm-indicator:hover,
+.llm-indicator:focus-visible {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  outline: none;
+}
+
+.llm-indicator.ready .llm-indicator-label {
+  color: #8ee4ad;
+}
+
+.llm-indicator.waiting .llm-indicator-label {
+  color: #e0c48a;
+}
+
+.llm-indicator-label {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.llm-indicator-tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  max-width: min(280px, 72vw);
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #1c1c2a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.llm-indicator:hover .llm-indicator-tip,
+.llm-indicator:focus-visible .llm-indicator-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .dot {
@@ -546,6 +625,7 @@ body,
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding-top: 4px;
   padding-right: 4px;
 }
 

@@ -32,7 +32,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#0f0f17',
-    title: 'Project Companion',
+    title: 'Lotus',
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
