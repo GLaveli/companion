@@ -1,21 +1,16 @@
-/** Detects questions that need live web data (games, news, opinions on recent releases). */
+import { extractResearchTopic, wantsAnswerResearch } from './intent'
+import { buildResearchSearchQuery } from './research/queryBuilder'
+
+/** Detects when Lotus should search the web and answer — not open the browser. */
 export function needsWebResearch(text: string): boolean {
-  const t = text.trim().toLowerCase()
-  if (t.length < 10) return false
-  if (/^(oi|olá|ola|hey|eii|bom dia|boa tarde|boa noite|tudo bem|obrigad)/.test(t)) return false
-
-  const signals = [
-    /\b(novo|nova|novos|novas|último|ultimo|lançamento|lancamento|recente|atual|anunciado|saiu)\b/,
-    /\b(o que acha|o que você acha|what do you think|sabe sobre|conhece|ouviu falar|me fala sobre|conta sobre|fala sobre)\b/,
-    /\b(jogo|game|games|filme|série|serie|anime|notícia|noticia|trailer|review|resenha)\b/,
-    /\b(god of war|playstation|xbox|nintendo|state of play)\b/
-  ]
-
-  return signals.some((re) => re.test(t))
+  return wantsAnswerResearch(text)
 }
 
 /** Short honest line spoken while search runs in the background. */
 export function buildResearchAck(userText: string): string {
+  if (/\b(?:pesquis[ae]|busca(?:r)?|procura(?:r)?)\s+(?:sobre|por)\b/i.test(userText)) {
+    return 'Beleza, deixa eu pesquisar isso e te conto o que eu achar!'
+  }
   if (/god of war/i.test(userText)) {
     return 'Hmm, eu ainda não vi esse God of War novo! Deixa eu pesquisar rapidinho...'
   }
@@ -30,21 +25,8 @@ export function buildResearchAck(userText: string): string {
 
 /** Builds a search query from casual Portuguese questions. */
 export function buildSearchQuery(userText: string): string {
-  const t = userText.trim()
-
-  if (/god of war/i.test(t)) {
-    return 'God of War Laufey 2026 sinopse gameplay'
-  }
-
-  const about = t.match(
-    /(?:o que acha do|o que você acha do|sabe sobre|me fala sobre|fala sobre|conhece o|conhece a)\s+(.+?)\??$/i
-  )?.[1]
-  if (about) return `${about.trim()} 2026 review`
-
-  const novo = t.match(/(?:novo|nova)\s+(.+?)\??$/i)?.[1]
-  if (novo) return `${novo.trim()} 2026`
-
-  return t.replace(/\?+$/, '').trim()
+  const topic = extractResearchTopic(userText)
+  return buildResearchSearchQuery(userText, topic)
 }
 
 export function formatSearchBlock(

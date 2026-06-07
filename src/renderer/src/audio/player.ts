@@ -37,16 +37,21 @@ export async function playWithAnalyser(audioUrl: string): Promise<Playback> {
     if (lipSyncState.analyser === analyser) lipSyncState.analyser = null
   }
 
+  let finished = false
+  let resolveDone!: () => void
   const done = new Promise<void>((resolve) => {
-    audio.onended = () => {
-      cleanup()
-      resolve()
-    }
-    audio.onerror = () => {
-      cleanup()
-      resolve()
-    }
+    resolveDone = resolve
   })
+
+  const finish = (): void => {
+    if (finished) return
+    finished = true
+    cleanup()
+    resolveDone()
+  }
+
+  audio.onended = finish
+  audio.onerror = finish
 
   await audio.play()
 
@@ -56,7 +61,7 @@ export async function playWithAnalyser(audioUrl: string): Promise<Playback> {
     stop: () => {
       audio.pause()
       audio.currentTime = 0
-      cleanup()
+      finish()
     }
   }
 }

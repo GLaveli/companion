@@ -1,0 +1,18 @@
+# Projeto "Lotus memory" no Docker Desktop — container mind1
+name: lotus-memory
+
+services:
+  mind:
+    container_name: mind1
+    image: qdrant/qdrant:v1.18.0
+    labels:
+      com.lotus.service: memory
+      com.lotus.display-name: Lotus memory
+    ports:
+      - '6333:6333'
+    volumes:
+      - mind1_storage:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  mind1_storage:

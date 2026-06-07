@@ -1,8 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
+  type AgentAction,
+  type AgentExecuteResult,
+  type AgentPlan,
+  type AgentToolInfo,
   type AssistantReply,
   type ChatPlan,
+  type DevLogEntry,
   type Emotion,
   type AvatarCollection,
   type AvatarFile,
@@ -12,6 +17,10 @@ import {
   type CatalogAvatarEntry,
   type EdgeVoiceSettings,
   type GptSoVitsStatus,
+  type LlmDownloadProgress,
+  type LlmDownloadResult,
+  type LlmProfileId,
+  type LlmProfileState,
   type ModelStatus,
   type SystemMetrics,
   type TtsResult,
@@ -21,10 +30,25 @@ import {
 
 const api = {
   chat: (text: string): Promise<AssistantReply> => ipcRenderer.invoke(IPC.llmChat, text),
+  conversationShortcut: (text: string): Promise<AssistantReply | null> =>
+    ipcRenderer.invoke(IPC.llmShortcut, text),
+  recordTurn: (role: 'user' | 'assistant', content: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.conversationRecordTurn, role, content),
   chatPlan: (text: string): Promise<ChatPlan> => ipcRenderer.invoke(IPC.llmPlan, text),
   chatResearch: (text: string, preamble: string): Promise<AssistantReply> =>
     ipcRenderer.invoke(IPC.llmResearch, text, preamble),
   resetChat: (): Promise<void> => ipcRenderer.invoke(IPC.llmReset),
+  getLlmProfile: (): Promise<LlmProfileState> => ipcRenderer.invoke(IPC.llmGetProfile),
+  setLlmProfile: (profile: LlmProfileId): Promise<LlmProfileState> =>
+    ipcRenderer.invoke(IPC.llmSetProfile, profile),
+  downloadLlmModel: (profileId: Exclude<LlmProfileId, 'auto'>): Promise<LlmDownloadResult> =>
+    ipcRenderer.invoke(IPC.llmDownloadModel, profileId),
+  cancelLlmDownload: (): Promise<{ ok: boolean }> => ipcRenderer.invoke(IPC.llmCancelDownload),
+  onLlmDownloadProgress: (cb: (progress: LlmDownloadProgress) => void): (() => void) => {
+    const listener = (_e: unknown, progress: LlmDownloadProgress): void => cb(progress)
+    ipcRenderer.on(IPC.onLlmDownloadProgress, listener)
+    return () => ipcRenderer.removeListener(IPC.onLlmDownloadProgress, listener)
+  },
   getStatus: (): Promise<ModelStatus> => ipcRenderer.invoke(IPC.llmStatus),
   speak: (text: string, emotion?: Emotion, voice?: string): Promise<TtsResult> =>
     ipcRenderer.invoke(IPC.ttsSpeak, text, emotion, voice),
@@ -42,6 +66,8 @@ const api = {
   transcribe: (wav: Uint8Array): Promise<{ text: string }> =>
     ipcRenderer.invoke(IPC.sttTranscribe, wav),
   pickAvatar: (): Promise<AvatarFile | null> => ipcRenderer.invoke(IPC.avatarPick),
+  resolveAvatarModelUrl: (modelUrl: string, preferFile = true): Promise<string> =>
+    ipcRenderer.invoke(IPC.avatarResolveModelUrl, modelUrl, preferFile),
   loadAvatar: (): Promise<AvatarFile | null> => ipcRenderer.invoke(IPC.avatarLoad),
   saveAvatar: (file: AvatarFile): Promise<AvatarFile> => ipcRenderer.invoke(IPC.avatarSave, file),
   catalogCurated: (): Promise<CatalogAvatarEntry[]> => ipcRenderer.invoke(IPC.avatarCatalogCurated),
@@ -60,11 +86,21 @@ const api = {
   saveAvatarAnimation: (settings: AvatarAnimationSettings): Promise<void> =>
     ipcRenderer.invoke(IPC.avatarAnimationSave, settings),
   getSystemMetrics: (): Promise<SystemMetrics> => ipcRenderer.invoke(IPC.systemMetrics),
+  agentPlan: (text: string): Promise<AgentPlan> => ipcRenderer.invoke(IPC.agentPlan, text),
+  agentExecute: (actions: AgentAction[]): Promise<AgentExecuteResult> =>
+    ipcRenderer.invoke(IPC.agentExecute, actions),
+  agentListTools: (): Promise<AgentToolInfo[]> => ipcRenderer.invoke(IPC.agentListTools),
   onStatus: (cb: (status: ModelStatus) => void): (() => void) => {
     const listener = (_e: unknown, status: ModelStatus): void => cb(status)
     ipcRenderer.on(IPC.onStatus, listener)
     return () => ipcRenderer.removeListener(IPC.onStatus, listener)
-  }
+  },
+  onDevLog: (cb: (entry: DevLogEntry) => void): (() => void) => {
+    const listener = (_e: unknown, entry: DevLogEntry): void => cb(entry)
+    ipcRenderer.on(IPC.onDevLog, listener)
+    return () => ipcRenderer.removeListener(IPC.onDevLog, listener)
+  },
+  relaunchApp: (): Promise<void> => ipcRenderer.invoke(IPC.appRelaunch)
 }
 
 export type CompanionApi = typeof api

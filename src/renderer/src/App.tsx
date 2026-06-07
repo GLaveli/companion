@@ -9,10 +9,15 @@ import { flushAvatarLayoutSave, useAvatarLayout } from './avatar/layoutStore'
 import { flushAvatarAnimationSave, useAvatarAnimation } from './avatar/animationStore'
 import { getAvatarProvider } from './avatar/registry'
 import { useStore } from './store'
+import { LlmProfileSelect } from './components/LlmProfileSelect'
+import { DevLogPanel } from './components/DevLogPanel'
+import { StatusIndicator } from './components/StatusIndicator'
+import { LotusTitle } from './components/LotusTitle'
 import { useConversation } from './hooks/useConversation'
+import { AgentConfirmDialog } from './agent'
 import { loadActiveVoiceBarLabel } from './voiceLabel'
 import { formatCpuPercent, formatRamUsage, metricsTooltip } from './systemMetricsLabel'
-import type { AvatarFile, SystemMetrics } from '../../shared/types'
+import type { AvatarFile, MemoryIndicatorState, SystemMetrics } from '../../shared/types'
 
 const PHASE_LABEL: Record<string, string> = {
   idle: 'Pronta para conversar',
@@ -21,40 +26,105 @@ const PHASE_LABEL: Record<string, string> = {
   speaking: 'Falando...'
 }
 
+const MENTE_SETUP_CMD = 'npm run memory:qdrant'
+
+function formatMemoryIndicator(
+  state: MemoryIndicatorState,
+  kind: 'memoria' | 'mente'
+): { shortLabel: string; tooltip: string; indicatorClass: string; dotClass: string } {
+  const name = kind === 'memoria' ? 'Memória' : 'Mente'
+
+  if (state === 'ready') {
+    return {
+      shortLabel: name,
+      tooltip: kind === 'memoria' ? 'Memória pronta.' : 'Mente pronta.',
+      indicatorClass: 'ready',
+      dotClass: 'on'
+    }
+  }
+
+  if (state === 'offline') {
+    return {
+      shortLabel: name,
+      tooltip:
+        kind === 'memoria'
+          ? 'Opcional — diário SQLite indisponível. Reinicie a Lotus para reactivar.'
+          : `Opcional — mind1 desconectado. Para activar:\n${MENTE_SETUP_CMD}\n(Docker Desktop aberto)`,
+      indicatorClass: 'waiting',
+      dotClass: 'off'
+    }
+  }
+
+  return {
+    shortLabel: name,
+    tooltip:
+      kind === 'memoria'
+        ? 'Opcional — diário local ainda não activo. Reinicie a Lotus; o SQLite já vem incluído no app.'
+        : `Opcional — busca semântica inactiva. Para activar:\n${MENTE_SETUP_CMD}\n(Docker Desktop aberto)`,
+    indicatorClass: 'inactive',
+    dotClass: 'inactive'
+  }
+}
+
 function formatLlmStatus(
   ready: boolean,
   message: string
 ): { shortLabel: string; detail: string; tooltip: string } {
   const modelMatch = message.match(/Modelo carregado:\s*(.+)/i)
-  const modelName = modelMatch?.[1]?.trim()
+  const rawName = modelMatch?.[1]?.trim()
+  const profileName = rawName
+    ?.split(/[.·]/)[0]
+    ?.replace(/\s*RAM do sistema.*/i, '')
+    ?.trim()
 
   if (ready) {
+    const name = profileName || 'Hermes 3'
     return {
       shortLabel: 'IA pronta',
-      detail: modelName ?? '',
-      tooltip: modelName
-        ? `Verde: modelo de IA local carregado (${modelName}). A Lotus pode responder no chat.`
-        : 'Verde: cérebro da Lotus carregado e pronto para conversar.'
+      detail: '',
+      tooltip: `${name} carregado — pronta para conversar. CPU e RAM estão no painel abaixo.`
     }
   }
 
-  const waiting = message || 'Carregando o cérebro da Lotus…'
+  if (message.includes('Nenhum cérebro')) {
+    return {
+      shortLabel: 'Sem modelo',
+      detail: 'Baixe um cérebro no painel abaixo.',
+      tooltip: message
+    }
+  }
+
+  const waiting =
+    message.includes('Carregando') || message.includes('Trocando')
+      ? message
+      : message.includes('Modelo carregado')
+        ? 'Carregando o cérebro da Lotus…'
+        : message || 'Carregando o cérebro da Lotus…'
+  const detail = waiting.length > 64 ? 'Carregando o cérebro da Lotus…' : waiting
   return {
     shortLabel: 'Carregando IA',
-    detail: waiting,
-    tooltip: `Laranja: ${waiting} Aguarde para conversar.`
+    detail,
+    tooltip: detail
   }
 }
 
 export default function App(): React.JSX.Element {
-  const { messages, phase, statusMessage, llmReady, avatarName, avatarKind } = useStore()
+  const {
+    messages,
+    phase,
+    statusMessage,
+    llmReady,
+    memoriaState,
+    menteState,
+    avatarName,
+    avatarKind
+  } = useStore()
   const { sendText, startListening, stopListening } = useConversation()
   const [input, setInput] = useState('')
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [animationOpen, setAnimationOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
   const [voiceOpen, setVoiceOpen] = useState(false)
-  const [avatarReady, setAvatarReady] = useState(false)
   const [voiceLabel, setVoiceLabel] = useState({ short: 'Lotus (natural) · Francisca', title: '' })
   const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -77,9 +147,12 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     const off = window.companion.onStatus((s) => {
-      useStore.getState().setStatus(s.message || statusMessage, s.llmReady)
+      useStore.getState().setModelStatus(s)
     })
-    window.companion.getStatus().then((s) => useStore.getState().setStatus(s.message, s.llmReady))
+    const offLog = window.companion.onDevLog((entry) => {
+      useStore.getState().pushDevLog(entry)
+    })
+    window.companion.getStatus().then((s) => useStore.getState().setModelStatus(s))
 
     const onUnload = (): void => {
       flushAvatarLayoutSave()
@@ -109,16 +182,15 @@ export default function App(): React.JSX.Element {
             provider.id
           )
         }
-        setAvatarReady(true)
         await refreshVoiceLabel()
       } catch (err) {
         console.error('[app] init failed:', err)
-        setAvatarReady(true)
       }
     })()
 
     return () => {
       off()
+      offLog()
       window.removeEventListener('beforeunload', onUnload)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,6 +248,11 @@ export default function App(): React.JSX.Element {
     () => formatLlmStatus(llmReady, statusMessage),
     [llmReady, statusMessage]
   )
+  const memoriaStatus = useMemo(
+    () => formatMemoryIndicator(memoriaState, 'memoria'),
+    [memoriaState]
+  )
+  const menteStatus = useMemo(() => formatMemoryIndicator(menteState, 'mente'), [menteState])
   const cpuText = systemMetrics ? formatCpuPercent(systemMetrics.cpuPercent) : '—'
   const ramText = systemMetrics ? formatRamUsage(systemMetrics) : '—'
   const cpuTip = metricsTooltip('cpu', systemMetrics)
@@ -184,7 +261,7 @@ export default function App(): React.JSX.Element {
   return (
     <div className="app">
       <div className="stage">
-        {avatarReady ? <AvatarStage /> : null}
+        <AvatarStage />
         <div className="badge">{PHASE_LABEL[phase]}</div>
 
         <div className="stage-tools-dock">
@@ -209,51 +286,70 @@ export default function App(): React.JSX.Element {
       <aside className="panel">
         <div className="panel-top">
           <header className="panel-header">
-            <h1>Lotus</h1>
-            <button
-              type="button"
-              className={`llm-indicator ${llmReady ? 'ready' : 'waiting'}`}
-              aria-label={llmStatus.tooltip}
-            >
-              <span className={`dot ${llmReady ? 'on' : 'off'}`} aria-hidden="true" />
-              <span className="llm-indicator-label">{llmStatus.shortLabel}</span>
-              <span className="llm-indicator-tip">{llmStatus.tooltip}</span>
-            </button>
+            <div className="panel-header-row">
+              <LotusTitle />
+              <button
+                type="button"
+                className="app-relaunch-btn"
+                title="Reiniciar Lotus (fecha e abre de novo)"
+                aria-label="Reiniciar Lotus"
+                onClick={() => void window.companion.relaunchApp()}
+              >
+                ↻
+              </button>
+            </div>
+            <div className="status-indicators" role="group" aria-label="Estado da IA e memória">
+              <StatusIndicator
+                label={llmStatus.shortLabel}
+                tooltip={llmStatus.tooltip}
+                indicatorClass={llmReady ? 'ready' : 'waiting'}
+                dotClass={llmReady ? 'on' : 'off'}
+              />
+              <StatusIndicator
+                label={memoriaStatus.shortLabel}
+                tooltip={memoriaStatus.tooltip}
+                indicatorClass={memoriaStatus.indicatorClass}
+                dotClass={memoriaStatus.dotClass}
+              />
+              <StatusIndicator
+                label={menteStatus.shortLabel}
+                tooltip={menteStatus.tooltip}
+                indicatorClass={menteStatus.indicatorClass}
+                dotClass={menteStatus.dotClass}
+              />
+            </div>
           </header>
-          {llmStatus.detail ? <p className="status">{llmStatus.detail}</p> : null}
+          {llmStatus.detail ? <p className="status status--compact">{llmStatus.detail}</p> : null}
 
-          <div className="panel-meta" role="group" aria-label="Avatar, voz e uso de recursos">
+          <div className="panel-meta" role="group" aria-label="Avatar, voz, cérebro e uso de recursos">
             <span className="panel-meta-label">Avatar</span>
             <span className="panel-meta-value" title={avatarName ?? provider.defaultName}>
               {avatarName ?? provider.defaultName}
-            </span>
-            <span className="panel-meta-stat" tabIndex={0}>
-              <span className="panel-meta-stat-label">CPU</span>
-              <span className="panel-meta-stat-value">{cpuText}</span>
-              <span className="panel-meta-stat-tip">{cpuTip}</span>
             </span>
 
             <span className="panel-meta-label">Voz</span>
             <span className="panel-meta-value" title={voiceLabel.title || voiceLabel.short}>
               {voiceLabel.short}
             </span>
-            <span className="panel-meta-stat" tabIndex={0}>
-              <span className="panel-meta-stat-label">RAM</span>
-              <span className="panel-meta-stat-value">{ramText}</span>
-              <span className="panel-meta-stat-tip">{ramTip}</span>
-            </span>
+
+            <div className="panel-meta-stats" role="group" aria-label="Uso de CPU e RAM">
+              <span className="panel-meta-stat" tabIndex={0}>
+                <span className="panel-meta-stat-label">CPU</span>
+                <span className="panel-meta-stat-value">{cpuText}</span>
+                <span className="panel-meta-stat-tip">{cpuTip}</span>
+              </span>
+              <span className="panel-meta-stat" tabIndex={0}>
+                <span className="panel-meta-stat-label">RAM</span>
+                <span className="panel-meta-stat-value">{ramText}</span>
+                <span className="panel-meta-stat-tip">{ramTip}</span>
+              </span>
+            </div>
+
+            <LlmProfileSelect disabled={!llmReady && phase === 'thinking'} />
           </div>
         </div>
 
         <div className="messages" ref={listRef}>
-          {messages.length === 0 && (
-            <div className="hint">
-              Óii! Manda um oi pra Lotus — escreve aqui embaixo ou usa o microfone.
-              <br />
-              <br />
-              Avatar Live2D com animação de corpo. Escolha um modelo na galeria.
-            </div>
-          )}
           {messages.map((m, i) => (
             <div key={i} className={`msg ${m.role}`}>
               {m.content}
@@ -266,7 +362,13 @@ export default function App(): React.JSX.Element {
             type="button"
             className={`mic ${micActive ? 'recording' : ''}`}
             onClick={() => (micActive ? void stopListening() : void startListening())}
-            title={micActive ? 'Parar e enviar' : 'Falar'}
+            title={
+              micActive
+                ? 'Parar e enviar'
+                : phase === 'speaking'
+                  ? 'Interromper e falar'
+                  : 'Falar'
+            }
           >
             {micActive ? '■' : '🎤'}
           </button>
@@ -274,12 +376,13 @@ export default function App(): React.JSX.Element {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Fala com a Lotus..."
-            disabled={phase === 'thinking'}
           />
-          <button type="submit" disabled={!input.trim() || phase === 'thinking'}>
+          <button type="submit" disabled={!input.trim()}>
             Enviar
           </button>
         </form>
+
+        <DevLogPanel />
       </aside>
 
       <AvatarGallery
@@ -288,6 +391,7 @@ export default function App(): React.JSX.Element {
         onSelect={applyAvatar}
       />
       <AnimationControls open={animationOpen} onClose={() => setAnimationOpen(false)} />
+      <AgentConfirmDialog />
     </div>
   )
 }

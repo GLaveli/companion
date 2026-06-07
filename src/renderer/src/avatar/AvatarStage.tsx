@@ -23,10 +23,18 @@ export function AvatarStage(): React.JSX.Element {
       return
     }
     console.warn(`[avatar] ${modelUrl} failed — falling back to default model`)
-    const { llmReady } = useStore.getState()
-    useStore
-      .getState()
-      .setStatus('Não foi possível carregar esse avatar. Voltando para o padrão.', llmReady)
+    const state = useStore.getState()
+    state.setModelStatus({
+      llmReady: state.llmReady,
+      sttReady: false,
+      message: 'Não foi possível carregar esse avatar. Voltando para o padrão.',
+      memoriaReady: state.memoriaReady,
+      menteReady: state.menteReady,
+      memoriaState: state.memoriaState,
+      menteState: state.menteState,
+      memoriaDetail: state.memoriaDetail,
+      menteDetail: state.menteDetail
+    })
     setAvatar(provider.defaultModelUrl, provider.defaultName, provider.id)
     void window.companion.saveAvatar({
       name: provider.defaultName,

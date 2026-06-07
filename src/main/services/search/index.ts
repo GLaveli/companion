@@ -26,6 +26,11 @@ function expandQueries(query: string): string[] {
     }
   }
 
+  if (/stel\w*\s*blade/i.test(lower)) {
+    variants.add('Stellar Blade PS5 game review')
+    variants.add('Stellar Blade Shift Up action game')
+  }
+
   return [...variants].slice(0, 3)
 }
 
@@ -54,6 +59,8 @@ function scoreHit(hit: SearchHit, query: string): number {
   if (/laufey|everywhen|state of play|playstation\.com|theverge|ign\.|polygon|blog\.playstation/i.test(text)) {
     score += 5
   }
+  if (/stellar blade|shift up|ps5.*stellar/i.test(text)) score += 6
+  if (/parov stelar|geo stelar/i.test(text) && /stellar blade/i.test(query)) score -= 8
   if (/wikipedia/i.test(hit.title) && /laufey|god of war/i.test(text)) score += 4
   if (/news\.google\.com/i.test(hit.url)) score += 1
 

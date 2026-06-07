@@ -3,13 +3,26 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { IPC, type AvatarAnimationSettings, type AvatarFile, type AvatarLayout, type EdgeVoiceSettings, type ModelStatus } from '../shared/types'
 import { VOICE_PREVIEW_LINE } from '../shared/voiceText'
-import { initLlm, chat, chatPlan, chatResearch, resetChat, isLlmReady } from './services/llm'
+import { initLlm, chat, chatPlan, chatResearch, resetChat, isLlmReady, reloadLlm, getLlmProfileState } from './services/llm'
+import type { LlmProfileId } from '../shared/types'
+import { cancelLlmDownload, downloadLlmModel } from './services/llmDownload'
+import { listLlmModelOptions } from './services/llmProfile'
+import {
+  tryConversationShortcut,
+  tryBrowserSearchCommand,
+  tryRecallShortcut,
+  recordTranscriptTurn,
+  hydrateTranscript
+} from './services/conversation'
+import { closeMemoryDb, checkMenteHealth, checkSqliteHealth, getVectorSize, initMemory, initQdrant, shutdownQdrant } from './services/memory'
+import type { MemoryIndicatorState } from '../shared/types'
+import { bindDevLogSender, devLog } from './services/devLog'
 import { getGptSoVitsStatus, previewEdgeVoice, speak } from './services/tts'
 import { startGptSoVitsServer, stopGptSoVitsServer } from './services/gptsovitsProcess'
 import { listVoiceEntries, setActiveVoiceProfile } from './services/voiceStore'
 import { getEdgeVoiceSettings, saveEdgeVoiceSettings } from './services/edgeVoiceSettings'
 import { transcribe, isSttReady } from './services/stt'
-import { pickAvatar, loadSavedAvatar, saveAvatarSelection } from './services/avatar'
+import { pickAvatar, loadSavedAvatar, saveAvatarSelection, resolveAvatarModelUrl } from './services/avatar'
 import { loadAvatarLayout, saveAvatarLayout } from './services/avatarLayout'
 import { loadAvatarAnimation, saveAvatarAnimation } from './services/avatarAnimation'
 import { readSystemMetrics } from './services/systemMetrics'
@@ -20,10 +33,25 @@ import {
   listVroidLinks,
   downloadCatalogAvatar
 } from './services/avatarCatalog'
+import { agentPlan, executeAgentActions, listAgentTools } from './services/agent'
+import type { AgentAction } from './services/agent/types'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
 let mainWindow: BrowserWindow | null = null
+let memoriaReady = false
+let menteReady = false
+let memoriaState: MemoryIndicatorState = 'inactive'
+let menteState: MemoryIndicatorState = 'inactive'
+let memoriaDetail = ''
+let menteDetail = ''
+let lastStatusMessage = ''
+let memoriaEverReady = false
+let menteEverReady = false
+let memoryHealthTimer: ReturnType<typeof setInterval> | null = null
+
+const MEMORY_HEALTH_MS = 30_000
+const MENTE_SETUP_CMD = 'npm run memory:qdrant'
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -46,7 +74,11 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.on('ready-to-show', () => mainWindow?.show())
+  mainWindow.on('ready-to-show', () => {
+    bindDevLogSender((entry) => mainWindow?.webContents.send(IPC.onDevLog, entry))
+    devLog('app', 'janela pronta')
+    mainWindow?.show()
+  })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -66,17 +98,102 @@ function createWindow(): void {
   }
 }
 
-function broadcastStatus(message: string): void {
-  const status: ModelStatus = {
+function buildModelStatus(message?: string): ModelStatus {
+  if (message !== undefined && message !== '') lastStatusMessage = message
+  return {
     llmReady: isLlmReady(),
     sttReady: isSttReady(),
-    message
+    message: lastStatusMessage,
+    memoriaReady,
+    menteReady,
+    memoriaState,
+    menteState,
+    memoriaDetail,
+    menteDetail
   }
-  mainWindow?.webContents.send(IPC.onStatus, status)
+}
+
+function applyMemoriaStatus(healthy: boolean): void {
+  memoriaReady = healthy
+  if (healthy) {
+    memoriaEverReady = true
+    memoriaState = 'ready'
+    if (!memoriaDetail) memoriaDetail = 'Diário SQLite pronto'
+    return
+  }
+
+  memoriaState = memoriaEverReady ? 'offline' : 'inactive'
+  memoriaDetail = memoriaEverReady
+    ? 'Diário SQLite indisponível — reinicie a Lotus'
+    : 'Memória opcional — reinicie a Lotus para activar o diário local'
+}
+
+function applyMenteStatus(healthy: boolean): void {
+  menteReady = healthy
+  if (healthy) {
+    menteEverReady = true
+    menteState = 'ready'
+    menteDetail = `Qdrant · ${getVectorSize()} dim`
+    return
+  }
+
+  menteState = menteEverReady ? 'offline' : 'inactive'
+  menteDetail = menteEverReady
+    ? `mind1 desconectado — ${MENTE_SETUP_CMD}`
+    : `Mente opcional — ${MENTE_SETUP_CMD} (Docker aberto)`
+}
+
+async function refreshMemoryHealth(): Promise<void> {
+  applyMemoriaStatus(checkSqliteHealth())
+  applyMenteStatus(await checkMenteHealth())
+  broadcastMemoryStatus()
+}
+
+function startMemoryHealthCheck(): void {
+  if (memoryHealthTimer) return
+  memoryHealthTimer = setInterval(() => {
+    void refreshMemoryHealth()
+  }, MEMORY_HEALTH_MS)
+}
+
+function stopMemoryHealthCheck(): void {
+  if (!memoryHealthTimer) return
+  clearInterval(memoryHealthTimer)
+  memoryHealthTimer = null
+}
+
+function broadcastStatus(message: string): void {
+  mainWindow?.webContents.send(IPC.onStatus, buildModelStatus(message))
+}
+
+function broadcastMemoryStatus(): void {
+  mainWindow?.webContents.send(IPC.onStatus, buildModelStatus())
 }
 
 function registerIpc(): void {
-  ipcMain.handle(IPC.llmChat, async (_e, text: string) => chat(text))
+  ipcMain.handle(IPC.llmChat, async (_e, text: string) => {
+    devLog('llm', 'chat', text.slice(0, 80))
+    const reply = await chat(text)
+    devLog('llm', 'chat ok', reply.text.slice(0, 80))
+    return reply
+  })
+  ipcMain.handle(IPC.llmShortcut, async (_e, text: string) => {
+    devLog('ipc', 'shortcut', text.slice(0, 80))
+    const recall = await tryRecallShortcut(text)
+    if (recall) {
+      devLog('ipc', 'recall ok', recall.text.slice(0, 60))
+      return recall
+    }
+    const browser = await tryBrowserSearchCommand(text)
+    if (browser) return browser
+    return tryConversationShortcut(text)
+  })
+  ipcMain.handle(
+    IPC.conversationRecordTurn,
+    async (_e, role: 'user' | 'assistant', content: string) => {
+      recordTranscriptTurn(role, content)
+    }
+  )
   ipcMain.handle(IPC.llmPlan, async (_e, text: string) => chatPlan(text))
   ipcMain.handle(IPC.llmResearch, async (_e, text: string, preamble: string) =>
     chatResearch(text, preamble)
@@ -84,11 +201,45 @@ function registerIpc(): void {
   ipcMain.handle(IPC.llmReset, async () => {
     await resetChat()
   })
-  ipcMain.handle(IPC.llmStatus, async (): Promise<ModelStatus> => ({
-    llmReady: isLlmReady(),
-    sttReady: isSttReady(),
-    message: ''
-  }))
+  ipcMain.handle(IPC.llmGetProfile, async () => getLlmProfileState())
+  ipcMain.handle(IPC.llmSetProfile, async (_e, profile: LlmProfileId) => {
+    broadcastStatus('Trocando o cérebro da Lotus...')
+    const res = await reloadLlm(profile)
+    broadcastStatus(res.message)
+    return getLlmProfileState()
+  })
+  ipcMain.handle(IPC.llmListModels, async () => getLlmProfileState())
+  ipcMain.handle(IPC.llmDownloadModel, async (e, profileId: Exclude<LlmProfileId, 'auto'>) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const hadAnyModel = listLlmModelOptions().some((o) => o.available)
+    try {
+      broadcastStatus(`Baixando ${profileId === 'hermes' ? 'Hermes 3' : 'Qwen leve'}…`)
+      await downloadLlmModel(profileId, (progress) => {
+        win?.webContents.send(IPC.onLlmDownloadProgress, progress)
+      })
+
+      if (!hadAnyModel) {
+        broadcastStatus('Carregando o cérebro da Lotus...')
+        const res = await reloadLlm(profileId)
+        broadcastStatus(res.message)
+      } else {
+        broadcastStatus(
+          `${profileId === 'hermes' ? 'Hermes 3' : 'Qwen leve'} baixado. Troque em Cérebro se quiser usar esse modelo.`
+        )
+      }
+
+      return { ok: true, state: await getLlmProfileState() }
+    } catch (err) {
+      const message = (err as Error).message
+      broadcastStatus(message)
+      return { ok: false, error: message, state: await getLlmProfileState() }
+    }
+  })
+  ipcMain.handle(IPC.llmCancelDownload, async () => {
+    cancelLlmDownload()
+    return { ok: true }
+  })
+  ipcMain.handle(IPC.llmStatus, async (): Promise<ModelStatus> => buildModelStatus())
   ipcMain.handle(IPC.ttsSpeak, async (_e, text: string, emotion, voice) => speak(text, { emotion, voice }))
   ipcMain.handle(IPC.voiceList, async () => listVoiceEntries())
   ipcMain.handle(IPC.voicePreview, async () =>
@@ -117,6 +268,9 @@ function registerIpc(): void {
   ipcMain.handle(IPC.voicePreviewEdge, async (_e, profileId: string) => previewEdgeVoice(profileId))
   ipcMain.handle(IPC.sttTranscribe, async (_e, wav: Uint8Array) => ({ text: await transcribe(wav) }))
   ipcMain.handle(IPC.avatarPick, async () => pickAvatar(mainWindow))
+  ipcMain.handle(IPC.avatarResolveModelUrl, async (_e, modelUrl: string, preferFile = true) =>
+    resolveAvatarModelUrl(modelUrl, preferFile)
+  )
   ipcMain.handle(IPC.avatarLoad, async () => loadSavedAvatar())
   ipcMain.handle(IPC.avatarSave, async (_e, file: AvatarFile) => {
     await saveAvatarSelection(file)
@@ -140,16 +294,65 @@ function registerIpc(): void {
     saveAvatarAnimation(settings)
   )
   ipcMain.handle(IPC.systemMetrics, async () => readSystemMetrics())
+  ipcMain.handle(IPC.agentPlan, async (_e, text: string) => {
+    devLog('agent', 'plan', text.slice(0, 80))
+    const plan = await agentPlan(text)
+    devLog(
+      'agent',
+      'plan ok',
+      plan.needsAgent
+        ? `needsAgent actions=${plan.actions?.length ?? 0}`
+        : plan.duplicateMessage
+          ? 'duplicate'
+          : 'no'
+    )
+    return plan
+  })
+  ipcMain.handle(IPC.agentExecute, async (_e, actions: AgentAction[]) => {
+    devLog('agent', 'execute', `${actions.length} ação(ões)`)
+    const result = await executeAgentActions(actions)
+    devLog('agent', 'execute ok', result.summary.slice(0, 80))
+    return result
+  })
+  ipcMain.handle(IPC.agentListTools, async () => listAgentTools())
+  ipcMain.handle(IPC.appRelaunch, () => {
+    devLog('app', 'reiniciando', 'relaunch solicitado')
+    app.relaunch()
+    app.exit(0)
+  })
 }
 
 app.whenReady().then(async () => {
   registerIpc()
+
+  const recentTurns = initMemory()
+  hydrateTranscript(
+    recentTurns.map((t) => ({ role: t.role, content: t.content, at: t.at }))
+  )
+  applyMemoriaStatus(checkSqliteHealth())
+  if (memoriaReady && recentTurns.length > 0) {
+    memoriaDetail = `${recentTurns.length} turno(s) carregado(s)`
+  }
+  devLog('memory', 'SQLite pronto', `${recentTurns.length} turnos carregados`)
+  broadcastMemoryStatus()
+
   createWindow()
 
   // Load the LLM in the background so the window can show immediately.
   broadcastStatus('Carregando o cérebro da Lotus...')
+  devLog('llm', 'init', 'carregando modelo')
   const res = await initLlm()
+  devLog('llm', 'init ok', res.message.slice(0, 120))
   broadcastStatus(res.message)
+
+  // Qdrant + embeddings after UI/LLM — avoids starving Live2D IPC on startup.
+  setTimeout(() => {
+    void initQdrant().then((ok) => {
+      applyMenteStatus(ok)
+      broadcastMemoryStatus()
+    })
+  }, 2500)
+  startMemoryHealthCheck()
 
   void startGptSoVitsServer().then((ok) => {
     if (ok) console.log('[app] GPT-SoVITS voice server started')
@@ -165,4 +368,9 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => stopGptSoVitsServer())
+app.on('before-quit', () => {
+  stopMemoryHealthCheck()
+  stopGptSoVitsServer()
+  shutdownQdrant()
+  closeMemoryDb()
+})

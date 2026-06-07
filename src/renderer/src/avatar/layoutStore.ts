@@ -25,7 +25,7 @@ export function flushAvatarLayoutSave(): void {
 
 export const useAvatarLayout = create<LayoutState>((set) => ({
   ...DEFAULT_LAYOUT,
-  hydrated: false,
+  hydrated: true,
 
   setLayout: (patch) => {
     set((s) => {

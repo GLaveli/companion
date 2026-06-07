@@ -2,6 +2,7 @@ import type { Live2DModel } from 'pixi-live2d-display-lipsyncpatch/cubism4'
 import { currentVolume } from '../../../audio/lipsync'
 import type { AvatarDriver, AvatarDriverInput } from '../../types'
 import { NEUTRAL_GAZE, resolveGazeTarget } from './gaze'
+import { useAvatarAnimation } from '../../animationStore'
 
 type MotionModel = Live2DModel & {
   motion: (group: string, index?: number | null, priority?: number) => void
@@ -49,7 +50,9 @@ export function createLive2DDriver(model: Live2DModel): AvatarDriver {
     const target = resolveGazeTarget()
     const goal = target ?? NEUTRAL_GAZE
     const releasing = !target
-    const blend = lerpFactor(releasing ? 4.2 : 11)
+    const mode = useAvatarAnimation.getState().gazeMode
+    const trackSpeed = mode === 'camera' ? 8 : mode === 'mouse' ? 13 : 11
+    const blend = lerpFactor(releasing ? 4.5 : trackSpeed)
 
     smoothEyeX += (goal.eyeX - smoothEyeX) * blend
     smoothEyeY += (goal.eyeY - smoothEyeY) * blend

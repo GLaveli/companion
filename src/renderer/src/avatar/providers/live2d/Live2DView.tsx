@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as PIXI from 'pixi.js'
 import { Application, Ticker } from 'pixi.js'
 import { Live2DModel } from 'pixi-live2d-display-lipsyncpatch/cubism4'
@@ -35,12 +35,39 @@ function stageSize(host: HTMLElement): { w: number; h: number } | null {
   return { w, h }
 }
 
+function waitForHostSize(host: HTMLElement, timeoutMs = 8000): Promise<{ w: number; h: number }> {
+  const now = stageSize(host)
+  if (now) return Promise.resolve(now)
+
+  return new Promise((resolve, reject) => {
+    const observer = new ResizeObserver(() => {
+      const size = stageSize(host)
+      if (!size) return
+      observer.disconnect()
+      clearTimeout(timer)
+      resolve(size)
+    })
+    observer.observe(host)
+    const timer = window.setTimeout(() => {
+      observer.disconnect()
+      reject(new Error('Palco do avatar sem área visível'))
+    }, timeoutMs)
+  })
+}
+
+function styleCanvas(canvas: HTMLCanvasElement): void {
+  canvas.style.display = 'block'
+  canvas.style.width = '100%'
+  canvas.style.height = '100%'
+}
+
 export function Live2DView({ modelUrl, onError, onReady }: AvatarViewProps): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const modelRef = useRef<Live2DModel | null>(null)
   const baseRef = useRef<Live2DBaseSize | null>(null)
   const appRef = useRef<Application | null>(null)
   const driverRef = useRef<AvatarDriver | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const hydrated = useAvatarLayout((s) => s.hydrated)
   const layout = useAvatarLayout(
     useShallow((s) => ({ x: s.x, y: s.y, scaleFactor: s.scaleFactor }))
@@ -55,6 +82,7 @@ export function Live2DView({ modelUrl, onError, onReady }: AvatarViewProps): Rea
     let resizeObserver: ResizeObserver | null = null
     let resizeFrame = 0
 
+    setLoadError(null)
     ;(window as unknown as { PIXI: typeof PIXI }).PIXI = PIXI
     Live2DModel.registerTicker(Ticker)
 
@@ -102,17 +130,25 @@ export function Live2DView({ modelUrl, onError, onReady }: AvatarViewProps): Rea
         await waitForCubismCore()
         if (disposed) return
 
-        const size = stageSize(host) ?? { w: 640, h: 480 }
+        const size = await waitForHostSize(host)
+        if (disposed) return
+
         const app = new Application({
           backgroundAlpha: 0,
           antialias: true,
           width: size.w,
-          height: size.h
+          height: size.h,
+          powerPreference: 'high-performance'
         })
         appRef.current = app
-        host.appendChild(app.view as HTMLCanvasElement)
 
-        const model = await Live2DModel.from(modelUrl, {
+        const canvas = app.view as HTMLCanvasElement
+        styleCanvas(canvas)
+        host.appendChild(canvas)
+
+        const preferFile = window.location.protocol === 'file:'
+        const resolvedUrl = await window.companion.resolveAvatarModelUrl(modelUrl, preferFile)
+        const model = await Live2DModel.from(resolvedUrl, {
           autoHitTest: false,
           autoFocus: false,
           ticker: Ticker.shared
@@ -137,7 +173,9 @@ export function Live2DView({ modelUrl, onError, onReady }: AvatarViewProps): Rea
         driverRef.current = driver
         onReady?.(driver)
       } catch (err) {
+        const message = (err as Error).message || 'Falha ao carregar Live2D'
         console.warn('[live2d] load failed:', err)
+        if (!disposed) setLoadError(message)
         onError?.()
       }
     })()
@@ -186,5 +224,15 @@ export function Live2DView({ modelUrl, onError, onReady }: AvatarViewProps): Rea
     layoutLive2DModel(model, size.w, size.h, useAvatarLayout.getState(), base)
   }, [hydrated, layout.x, layout.y, layout.scaleFactor])
 
-  return <div ref={hostRef} className="avatar-canvas-host" />
+  return (
+    <div ref={hostRef} className="avatar-canvas-host">
+      {loadError ? (
+        <div className="avatar-load-error" role="status">
+          Avatar Live2D indisponível.
+          <br />
+          {loadError}
+        </div>
+      ) : null}
+    </div>
+  )
 }

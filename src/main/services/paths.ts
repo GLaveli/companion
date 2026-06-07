@@ -26,10 +26,21 @@ export function getBundledVoicesDir(): string {
   return join(getModelsDir(), 'voices')
 }
 
-/** Finds the first .gguf file inside models/llm, or null if none exists. */
-export function findLlmModel(): string | null {
-  const dir = getLlmDir()
-  if (!existsSync(dir)) return null
-  const gguf = readdirSync(dir).find((f) => f.toLowerCase().endsWith('.gguf'))
-  return gguf ? join(dir, gguf) : null
+export function getLlmModelFileName(modelPath: string | null): string | null {
+  if (!modelPath) return null
+  return modelPath.split(/[\\/]/).pop() ?? null
+}
+
+export function isHermesModel(modelPath: string | null): boolean {
+  if (!modelPath) return false
+  return /hermes/i.test(modelPath)
+}
+
+export function describeLlmModel(modelPath: string | null): string {
+  const name = getLlmModelFileName(modelPath)
+  if (!name) return 'nenhum'
+  if (/hermes-3/i.test(name)) return 'Hermes 3'
+  if (/hermes/i.test(name)) return 'Hermes'
+  if (/qwen/i.test(name)) return 'Qwen 2.5'
+  return name.replace(/\.gguf$/i, '')
 }

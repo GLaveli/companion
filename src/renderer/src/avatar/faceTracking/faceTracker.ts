@@ -1,4 +1,5 @@
 import type { GazeTarget } from '../gazeTypes'
+import { polishGazeTarget, resetGazeSmoothing, smoothGazeSample } from '../gazePolish'
 import type { FaceTrackerStatus } from './types'
 
 const WASM_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.20/wasm'
@@ -51,12 +52,12 @@ function landmarksToGaze(points: NormalizedLandmark[]): GazeTarget {
   const eyeX = clamp(dx, -1, 1)
   const eyeY = clamp(-dy, -1, 1)
 
-  return {
+  return polishGazeTarget({
     eyeX,
     eyeY,
-    angleX: clamp(eyeX * 30, -30, 30),
-    angleY: clamp(eyeY * 22, -26, 26)
-  }
+    angleX: clamp(eyeX * 28, -30, 30),
+    angleY: clamp(eyeY * 20, -24, 24)
+  })
 }
 
 function tick(): void {
@@ -68,10 +69,11 @@ function tick(): void {
       lastVideoTime = videoEl.currentTime
       const result = landmarker.detectForVideo(videoEl, now)
       const landmarks = result.faceLandmarks?.[0]
-      currentGaze = landmarks?.length ? landmarksToGaze(landmarks) : null
+      const raw = landmarks?.length ? landmarksToGaze(landmarks) : null
+      currentGaze = smoothGazeSample(raw, 0.26)
     }
   } else {
-    currentGaze = null
+    currentGaze = smoothGazeSample(null)
   }
 
   rafId = requestAnimationFrame(tick)
@@ -185,6 +187,7 @@ export function stopFaceTracker(): void {
   rafId = 0
   lastVideoTime = -1
   currentGaze = null
+  resetGazeSmoothing()
 
   landmarker?.close()
   landmarker = null
