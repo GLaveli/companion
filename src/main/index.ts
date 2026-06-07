@@ -315,11 +315,6 @@ function registerIpc(): void {
     return result
   })
   ipcMain.handle(IPC.agentListTools, async () => listAgentTools())
-  ipcMain.handle(IPC.appRelaunch, () => {
-    devLog('app', 'reiniciando', 'relaunch solicitado')
-    app.relaunch()
-    app.exit(0)
-  })
 }
 
 app.whenReady().then(async () => {
