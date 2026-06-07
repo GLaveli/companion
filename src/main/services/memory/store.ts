@@ -161,6 +161,13 @@ export function searchTurns(query: string, limit = 8): MemorySearchHit[] {
 
 export function extractRecallTopic(text: string): string | null {
   const t = text.trim()
+
+  const flexible = t.match(/(?:falamos|conversamos)\s+(?:.+?\s+)?sobre\s+(.+)/i)
+  if (flexible?.[1]) {
+    const topic = cleanRecallTopic(flexible[1])
+    if (topic) return normalizeRecallTopic(topic)
+  }
+
   const patterns = [
     /(?:falamos|falava|conversamos|conversava|falando|conversando)\s+(?:sobre|de)\s+(.+)/i,
     /(?:do que|sobre o que|sobre o quê)\s+(?:a gente |nós |nos )?(?:fal|convers)(?:amos|ávamos|avamos)?(?:\s+sobre)?\s*(.+)/i,
@@ -170,13 +177,53 @@ export function extractRecallTopic(text: string): string | null {
   for (const pattern of patterns) {
     const match = t.match(pattern)
     if (match?.[1]) {
-      const topic = match[1]
-        .replace(/\?+$/, '')
-        .replace(/\b(agora|hoje|ontem|última|ultima|nossa conversa)\b/gi, '')
-        .trim()
-      if (topic.length >= 2) return topic
+      const topic = cleanRecallTopic(match[1])
+      if (topic) return normalizeRecallTopic(topic)
     }
   }
 
+  if (/\b(?:algum|qual)\s+jogo\b/i.test(t)) return 'jogo'
+
   return null
+}
+
+function cleanRecallTopic(raw: string): string | null {
+  const topic = raw
+    .replace(/\?+$/, '')
+    .replace(/\b(agora|hoje|ontem|última|ultima|nossa conversa|no passado|passado)\b/gi, '')
+    .trim()
+  return topic.length >= 2 ? topic : null
+}
+
+function normalizeRecallTopic(topic: string): string {
+  if (/^(?:algum\s+)?jogos?$/i.test(topic.trim())) return 'jogo'
+  return topic
+}
+
+/** Busca turnos por tópico — expande «jogo» para vários termos. */
+export function searchRecallTopicHits(
+  topic: string,
+  limit = 6,
+  excludeContent?: string
+): MemorySearchHit[] {
+  const exclude = excludeContent?.trim()
+  const filter = (h: MemorySearchHit) =>
+    h.role === 'user' && (!exclude || h.content.trim() !== exclude)
+
+  if (/^jogo$/i.test(topic.trim())) {
+    const terms = ['jogo', 'game', 'god of war', 'playstation']
+    const seen = new Set<string>()
+    const hits: MemorySearchHit[] = []
+    for (const term of terms) {
+      for (const h of searchTurns(term, 4).filter(filter)) {
+        if (seen.has(h.content)) continue
+        seen.add(h.content)
+        hits.push(h)
+        if (hits.length >= limit) return hits
+      }
+    }
+    return hits
+  }
+
+  return searchTurns(topic, limit).filter(filter)
 }

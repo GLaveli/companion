@@ -32,7 +32,7 @@ import {
 import { researchTopicHint } from './research/queryBuilder'
 import { searchWeb } from './search'
 import { extractResearchTopic } from './intent'
-import { resetSessionMemory, resetTranscript, formatTranscriptForPrompt } from './conversation'
+import { resetSessionMemory, resetTranscript, formatTranscriptForPrompt, formatUserFactsForPrompt, formatIdentityRulesForPrompt } from './conversation'
 
 const SYSTEM_PROMPT = `Você é a Lotus, uma garota animada e carinhosa do Brasil: leve, curiosa e bem-humorada.
 
@@ -46,7 +46,8 @@ FOCO NA PERGUNTA ATUAL (crítico):
 - NÃO mencione assuntos de mensagens anteriores (jogos, pesquisas, Google, buscas) a menos que ele pergunte explicitamente sobre isso.
 - NÃO puxe tópicos antigos para "continuar a conversa". Se ele mudou de assunto, acompanhe o assunto novo.
 - Se ele disser o nome dele, confirme em 1 frase curta. Não adicione outros tópicos.
-- Se perguntarem seu nome, diga "Lotus" em 1 frase — sem auto-apresentação longa.
+- «Qual o SEU nome?» / «quem é você?» → você é Lotus (1 frase).
+- «Qual o MEU nome?» / «como me chamo?» / «como eu me chamo?» → use o nome DELE nos fatos do prompt, nunca diga Lotus.
 
 COMPORTAMENTO:
 - Seja gentil e natural, como uma amiga próxima — nunca robótica.
@@ -269,10 +270,15 @@ export async function chat(userText: string): Promise<AssistantReply> {
   try {
     session.resetChatHistory()
 
+    const identity = formatIdentityRulesForPrompt()
+    const facts = formatUserFactsForPrompt()
     const history = formatTranscriptForPrompt(userText, 6)
-    const prompt = history
-      ? `${history}\n\n---\nResponda APENAS à pergunta abaixo, de forma curta (1–2 frases):\n${userText}`
-      : userText
+    const blocks = [identity, facts, history].filter(Boolean)
+
+    const prompt =
+      blocks.length > 0
+        ? `${blocks.join('\n\n')}\n\n---\nResponda APENAS à pergunta abaixo, de forma curta (1–2 frases):\n${userText}`
+        : userText
 
     const raw = await session.prompt(prompt, CHAT_OPTS)
     const text = raw.trim() || 'Hmm, não consegui formular uma resposta agora — tenta de novo?'

@@ -22,6 +22,7 @@
     "gptsovits:start": "cd vendor/GPT-SoVITS && .venv/bin/python api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer.yaml",
     "memory:qdrant": "docker compose -p lotus-memory -f docker/qdrant-compose.yml up -d",
     "memory:qdrant:stop": "docker compose -p lotus-memory -f docker/qdrant-compose.yml down",
+    "memory:reset": "node scripts/reset-memory.mjs",
     "dist": "electron-vite build && electron-builder",
     "dist:win": "electron-vite build && electron-builder --win",
     "dist:mac": "electron-vite build && electron-builder --mac"

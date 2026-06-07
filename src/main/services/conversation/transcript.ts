@@ -3,10 +3,11 @@ import {
   getRecentEvents,
   getRecentUserMessages,
   persistTurn,
+  searchRecallTopicHits,
   searchTurns
 } from '../memory'
 import { enqueueMemoryWrite } from '../memory/writeQueue'
-import { indexMemoryPoint, isQdrantEnabled, searchQdrant } from '../memory/qdrant'
+import { isMemoryRecallIntent } from '../intent/recallIntent'
 
 export interface TranscriptTurn {
   role: 'user' | 'assistant'
@@ -82,10 +83,64 @@ function quoteTopic(text: string): string {
 }
 
 export function isRecallQuestion(text: string): boolean {
-  const t = text.trim().toLowerCase()
-  return /\b(lembra|lembrar|lembro|memória|memoria|última conversa|ultima conversa|conversa anterior|falamos sobre|falava sobre|estávamos falando|estavamos falando|do que (?:a gente |nós |nos )?fal|nossa conversa|o que (?:a gente |nós |nos )?convers|retoma|continuar de onde|pesquisei|pesquisamos|busquei|buscamos)\b/i.test(
-    t
+  return isMemoryRecallIntent(text)
+}
+
+function wantsOlderRecall(text: string): boolean {
+  return /\b(?:antes|atr[aá]s|atras|ant(?:es|erior(?:mente)?)|mais tempo|h[aá] (?:muito )?tempo|mais cedo)\b/i.test(
+    text.trim().toLowerCase()
   )
+}
+
+/** Cumprimentos, nome, meta-recall — não são “assunto” da conversa. */
+function isMetaUserTurn(content: string): boolean {
+  const t = content.trim().toLowerCase()
+  if (t.length < 12) return true
+  if (
+    /(?:qual|como)\s+(?:o\s+)?meu\s+nome|meu\s+nome\s+(?:é|e|nao|não)|me\s+chamo|qual\s+(?:é|e)\s+(?:o\s+)?seu\s+nome|quem\s+(?:é|e)\s+voc/i.test(
+      t
+    )
+  ) {
+    return true
+  }
+  if (/^(oi|olá|ola|hey|eii+|bom dia|boa tarde|chega|para|sim sim|beleza|ok ok)\b/.test(t)) return true
+  if (isMemoryRecallIntent(content)) return true
+  return false
+}
+
+function formatTopicList(topics: string[]): string {
+  if (topics.length === 1) return topics[0]
+  if (topics.length === 2) return `${topics[0]} e ${topics[1]}`
+  return `${topics.slice(0, -1).join(', ')} e ${topics[topics.length - 1]}`
+}
+
+function collectRecallTopics(
+  excludeContent: string | undefined,
+  mode: 'recent' | 'older'
+): string[] {
+  const topics: string[] = []
+
+  for (const event of getRecentEvents('browser_search', 5)) {
+    const q = (event.payload.query ?? event.payload.q ?? '').trim()
+    if (q) topics.push(`pesquisa «${q}»`)
+  }
+
+  const substantive = getRecentUserMessages(60, excludeContent).filter(
+    (turn) => !isMetaUserTurn(turn.content)
+  )
+
+  const slice =
+    mode === 'older'
+      ? substantive.length > 3
+        ? substantive.slice(3, 8)
+        : substantive.slice(-Math.min(3, substantive.length))
+      : substantive.slice(0, 5)
+
+  for (const turn of slice) {
+    topics.push(quoteTopic(turn.content))
+  }
+
+  return [...new Set(topics)].slice(0, 4)
 }
 
 function isSearchRecallQuestion(text: string): boolean {
@@ -106,9 +161,7 @@ export async function buildRecallReply(excludeCurrentUserText?: string): Promise
   const topic = excludeCurrentUserText ? extractRecallTopic(excludeCurrentUserText) : null
 
   if (topic) {
-    const hits = searchTurns(topic, 6).filter(
-      (h) => h.role === 'user' && h.content.trim() !== excludeCurrentUserText?.trim()
-    )
+    const hits = searchRecallTopicHits(topic, 6, excludeCurrentUserText)
     if (hits.length) {
       const unique = [...new Set(hits.map((h) => quoteTopic(h.content)))].slice(0, 3)
       return `Sim! Encontrei conversas sobre isso — você falou ${unique.join(', ')}. Quer continuar nisso?`
@@ -143,6 +196,35 @@ export async function buildRecallReply(excludeCurrentUserText?: string): Promise
   }
 
   const userTurns = getRecentUserMessages(20, excludeCurrentUserText)
+  const older = excludeCurrentUserText ? wantsOlderRecall(excludeCurrentUserText) : false
+  let topics = collectRecallTopics(excludeCurrentUserText, older ? 'older' : 'recent')
+
+  if (topics.length < 2 && isQdrantEnabled() && excludeCurrentUserText) {
+    const semantic = await searchQdrant(excludeCurrentUserText, 8)
+    for (const hit of semantic) {
+      if (
+        hit.role === 'user' &&
+        hit.kind === 'turn' &&
+        hit.content.trim() !== excludeCurrentUserText.trim() &&
+        !isMetaUserTurn(hit.content)
+      ) {
+        topics.push(quoteTopic(hit.content))
+      }
+    }
+    topics = [...new Set(topics)].slice(0, 4)
+  }
+
+  if (topics.length) {
+    const anchor = userTurns.find((t) => !isMetaUserTurn(t.content))
+    const when = anchor ? formatWhen(anchor.at) : null
+    const suffix = when ? ` (${when})` : ''
+    const list = formatTopicList(topics)
+
+    if (older) {
+      return `Mais atrás a gente falou sobre ${list}${suffix}. Quer retomar algum desses assuntos?`
+    }
+    return `Sim! Entre outras coisas: ${list}${suffix}. Quer continuar algum deles?`
+  }
 
   if (!userTurns.length) {
     const inSession = getRecentTranscript(20).filter(
@@ -160,13 +242,5 @@ export async function buildRecallReply(excludeCurrentUserText?: string): Promise
     return `Sim! Antes você falou sobre ${last.slice(0, -1).join(', ')} e também ${last[last.length - 1]}. Quer continuar nisso?`
   }
 
-  const last = userTurns.slice(0, 3).map((t) => quoteTopic(t.content))
-  const when = userTurns[0] ? formatWhen(userTurns[0].at) : null
-  const suffix = when ? ` (${when})` : ''
-
-  if (last.length === 1) {
-    return `Sim! Você tinha falado sobre ${last[0]}${suffix}. Quer continuar nisso?`
-  }
-
-  return `Sim! Antes você falou sobre ${last.slice(0, -1).join(', ')} e também ${last[last.length - 1]}${suffix}. Quer continuar nisso?`
+  return 'Ainda não achei assuntos guardados além desta conversa recente — me conta o que quer retomar?'
 }

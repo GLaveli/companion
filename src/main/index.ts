@@ -16,6 +16,7 @@ import {
   recordTranscriptTurn
 } from './services/conversation'
 import { closeMemoryDb, checkMenteHealth, checkSqliteHealth, getVectorSize, initMemory, initQdrant, shutdownQdrant } from './services/memory'
+import { isMemoryRecallIntent } from './services/intent/recallIntent'
 import type { MemoryIndicatorState } from '../shared/types'
 import { bindDevLogSender, devLog } from './services/devLog'
 import { getGptSoVitsStatus, previewEdgeVoice, speak } from './services/tts'
@@ -180,11 +181,21 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.llmShortcut, async (_e, text: string) => {
     devLog('ipc', 'shortcut', text.slice(0, 80))
+
+    if (isMemoryRecallIntent(text)) {
+      const recall = await tryRecallShortcut(text)
+      if (recall) {
+        devLog('ipc', 'recall ok', recall.text.slice(0, 60))
+        return recall
+      }
+    }
+
     const personal = tryPersonalFactShortcut(text)
     if (personal) {
       devLog('ipc', 'nome ok', personal.text.slice(0, 60))
       return personal
     }
+
     const recall = await tryRecallShortcut(text)
     if (recall) {
       devLog('ipc', 'recall ok', recall.text.slice(0, 60))

@@ -3,11 +3,7 @@ import { getRecentUserMessages } from '../memory'
 import { getCachedUserName, setCachedUserName } from './sessionMemory'
 import { getRecentTranscript } from './transcript'
 
-const NAME_INTRO =
-  /(?:meu nome (?:é|e)|me chamo|pode me chamar de|pode chamar de|sou o|sou a)\s+(.+)/i
-
-const NAME_QUESTION =
-  /(?:qual|como)\s+(?:é|e)\s+(?:o\s+)?meu\s+nome|como\s+(?:me\s+)?chamo|sabe\s+meu\s+nome|lembra\s+(?:do\s+)?meu\s+nome/i
+const NAME_CORRECTION_HINT = /\b(nao|não|sim|verdade|errad|confus|corrig)/i
 
 function normalizeName(raw: string): string | null {
   const name = raw
@@ -15,74 +11,135 @@ function normalizeName(raw: string): string | null {
     .trim()
     .split(/\s+/)[0]
   if (!name || name.length < 2 || name.length > 32) return null
+  if (/^(?:nao|não|nao|sim|e|é|o|a)$/i.test(name)) return null
   return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
 }
 
-function parseNameFromIntro(text: string): string | null {
-  const match = text.trim().match(NAME_INTRO)
+function extractRejectedNameFromText(text: string): string | null {
+  const match = text.match(/meu\s+nome\s+(?:nao|não)\s+(?:é|e)\s+(\S+)/i)
   if (!match?.[1]) return null
   return normalizeName(match[1])
 }
 
-function findNameInTranscript(excludeContent?: string): string | null {
+/** Extrai nome declarado ou corrigido — mais recente na conversa prevalece. */
+export function extractUserNameFromText(text: string): string | null {
+  const t = text.trim()
+
+  const correction = t.match(
+    /meu\s+nome\s+(?:nao|não)\s+(?:é|e)\s+\S+(?:\s+(?:e|é)\s+sim)\s+([^\s,!.?]+)/i
+  )
+  if (correction?.[1]) return normalizeName(correction[1])
+
+  const actually = t.match(
+    /(?:na\s+verdade|corrige(?:ndo)?|desculp\w*)\s*,?\s*(?:é|e|sou)\s+([^\s,!.?]+)/i
+  )
+  if (actually?.[1]) return normalizeName(actually[1])
+
+  const intro = t.match(
+    /(?:meu\s+nome\s+(?:é|e)|me\s+chamo|pode\s+me\s+chamar\s+de|pode\s+chamar\s+de|sou\s+(?:o|a))\s+([^\s,!.?]+)/i
+  )
+  if (intro?.[1]) return normalizeName(intro[1])
+
+  return null
+}
+
+function findNameInTranscript(
+  excludeContent: string | undefined,
+  pick: 'current' | 'previous'
+): string | null {
   const exclude = excludeContent?.trim()
 
   for (const turn of [...getRecentTranscript(40)].reverse()) {
     if (turn.role !== 'user') continue
     if (exclude && turn.content.trim() === exclude) continue
-    const name = parseNameFromIntro(turn.content)
+
+    if (pick === 'previous') {
+      const rejected = extractRejectedNameFromText(turn.content)
+      if (rejected) return rejected
+      continue
+    }
+
+    const name = extractUserNameFromText(turn.content)
     if (name) return name
   }
 
   return null
 }
 
-function findNameInDb(excludeContent?: string): string | null {
+function findNameInDb(excludeContent: string | undefined, pick: 'current' | 'previous'): string | null {
   for (const turn of getRecentUserMessages(40, excludeContent)) {
-    const name = parseNameFromIntro(turn.content)
+    if (pick === 'previous') {
+      const rejected = extractRejectedNameFromText(turn.content)
+      if (rejected) return rejected
+      continue
+    }
+
+    const name = extractUserNameFromText(turn.content)
     if (name) return name
   }
   return null
 }
 
-function resolveStoredUserName(excludeContent?: string): string | null {
-  const cached = getCachedUserName()
-  if (cached !== undefined) return cached
-
-  const fromRam = findNameInTranscript(excludeContent)
+export function resolveCurrentUserName(excludeContent?: string): string | null {
+  const fromRam = findNameInTranscript(excludeContent, 'current')
   if (fromRam) {
     setCachedUserName(fromRam)
     return fromRam
   }
 
-  const fromDb = findNameInDb(excludeContent)
-  setCachedUserName(fromDb)
-  return fromDb
+  const fromDb = findNameInDb(excludeContent, 'current')
+  if (fromDb) {
+    setCachedUserName(fromDb)
+    return fromDb
+  }
+
+  const cached = getCachedUserName()
+  return cached !== undefined ? cached : null
 }
 
-/** Respostas curtas sobre nome — sem LLM, sem puxar tópicos antigos. */
+export function resolvePreviousUserName(excludeContent?: string): string | null {
+  return findNameInTranscript(excludeContent, 'previous') ?? findNameInDb(excludeContent, 'previous')
+}
+
+/** Regras fixas — sempre no prompt do chat (eu = usuário, ela = Lotus). */
+export function formatIdentityRulesForPrompt(): string {
+  return `QUEM É QUEM (obrigatório):
+- Lotus = VOCÊ (assistente). «Seu nome», «quem é você», «como você se chama» → responda Lotus.
+- Usuário = a PESSOA no chat. «Meu nome», «como me chamo», «como eu me chamo» → fale do USUÁRIO, nunca diga Lotus.
+- «Meu/minha/como me chamo/eu me chamo» = sempre o usuário. «Seu/sua/quem é você» = sempre Lotus.
+- Se não souber o nome do usuário, diga que ele ainda não te disse — não invente.`
+}
+
+/** Fatos do usuário já declarados (nome etc.). */
+export function formatUserFactsForPrompt(): string | null {
+  const current = resolveCurrentUserName()
+  const previous = resolvePreviousUserName()
+  if (!current && !previous) return null
+
+  const lines = ['Fatos do usuário (confiáveis):']
+  if (current) lines.push(`- Nome dele: ${current}`)
+  if (previous) lines.push(`- Nome antigo que ele corrigiu: ${previous}`)
+  return lines.join('\n')
+}
+
+function isNameCorrection(text: string): boolean {
+  return NAME_CORRECTION_HINT.test(text)
+}
+
+/** Só quando o usuário DECLARA ou CORRIGE o nome — confirmação curta. Perguntas vão ao LLM. */
 export function tryPersonalFactShortcut(text: string): AssistantReply | null {
-  const introName = parseNameFromIntro(text)
-  if (introName) {
-    setCachedUserName(introName)
+  const declaredName = extractUserNameFromText(text)
+  if (!declaredName) return null
+
+  setCachedUserName(declaredName)
+  if (isNameCorrection(text)) {
     return {
-      text: `Prazer, ${introName}!`,
+      text: `Ah, ${declaredName}! Anotado.`,
       emotion: 'happy'
     }
   }
-
-  if (!NAME_QUESTION.test(text.trim())) return null
-
-  const name = resolveStoredUserName(text)
-  if (name) {
-    return {
-      text: `Seu nome é ${name}.`,
-      emotion: 'happy'
-    }
-  }
-
   return {
-    text: 'Ainda não me disse seu nome — como posso te chamar?',
-    emotion: 'thinking'
+    text: `Prazer, ${declaredName}!`,
+    emotion: 'happy'
   }
 }
