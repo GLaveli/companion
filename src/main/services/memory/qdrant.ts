@@ -174,3 +174,42 @@ export function shutdownQdrant(): void {
   client = null
   ready = false
 }
+
+/** Apaga a collection lotus_memory e recria vazia. */
+export async function clearQdrantCollection(): Promise<boolean> {
+  if (!client) {
+    client = new QdrantClient({ url: qdrantUrl() })
+  }
+
+  try {
+    await client.getCollections()
+  } catch {
+    client = null
+    ready = false
+    return false
+  }
+
+  try {
+    await client.deleteCollection(COLLECTION)
+  } catch {
+    /* collection may not exist */
+  }
+
+  if (!(await initEmbeddings())) {
+    client = null
+    ready = false
+    return false
+  }
+
+  try {
+    await ensureCollection()
+    ready = true
+    devLog('memory', 'Qdrant zerado', COLLECTION)
+    return true
+  } catch (err) {
+    devLog('memory', 'Qdrant clear falhou', (err as Error).message)
+    client = null
+    ready = false
+    return false
+  }
+}

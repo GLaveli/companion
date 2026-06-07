@@ -1,4 +1,6 @@
 /** Matches common misspellings of “google” (ggolge, gogle, etc.). */
+import { isMemoryRecallIntent } from './recallIntent'
+
 const GOOGLE =
   '(?:google|gogle|ggolge|ggogle|googel|gogl[eé]|g{1,2}[o0]{1,2}g{0,2}le)'
 
@@ -132,6 +134,9 @@ export function wantsAnswerResearch(text: string): boolean {
   if (t.length < 10 || isGreeting(t)) return false
 
   if (wantsBrowserSearch(text) || wantsOpenBrowserOnly(text)) return false
+
+  // Memória passada — recall dedicado, não pesquisa na web.
+  if (isMemoryRecallIntent(text)) return false
 
   if (/\b(?:pesquis[ae]|busca(?:r)?|procura(?:r)?)\s+(?:sobre|por|a respeito de)\b/i.test(t)) {
     return true

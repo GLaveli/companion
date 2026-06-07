@@ -111,3 +111,8 @@ export function closeMemoryDb(): void {
   db = null
   sessionId = null
 }
+
+/** Caminho do arquivo — usado pelo reset (sem abrir conexão). */
+export function dbPathForReset(): string {
+  return dbPath()
+}

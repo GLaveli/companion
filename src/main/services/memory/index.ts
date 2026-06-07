@@ -7,6 +7,7 @@ export {
   getRecentUserMessages,
   getRecentEvents,
   searchTurns,
+  searchRecallTopicHits,
   extractRecallTopic
 } from './store'
 export {
@@ -19,6 +20,7 @@ export {
   qdrantUrl
 } from './qdrant'
 export { checkMenteHealth, checkSqliteHealth } from './health'
+export { clearAllPersistentMemory } from './reset'
 export { initEmbeddings, getVectorSize } from './embeddings'
 export type {
   MemoryTurn,

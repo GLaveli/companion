@@ -9,4 +9,4 @@ export { isSimpleGreeting, isStopCommand, tryConversationShortcut } from './shor
 export { tryBrowserSearchCommand } from './browserSearch'
 export { tryOpenBrowserCommand } from './openBrowser'
 export { tryRecallShortcut } from './recall'
-export { tryPersonalFactShortcut } from './personalFacts'
+export { tryPersonalFactShortcut, formatUserFactsForPrompt, formatIdentityRulesForPrompt, extractUserNameFromText } from './personalFacts'
