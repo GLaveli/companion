@@ -293,6 +293,5 @@ export const IPC = {
   agentListTools: 'agent:tools',
   // Status events (main -> renderer)
   onStatus: 'app:status',
-  onDevLog: 'app:devlog',
-  appRelaunch: 'app:relaunch'
+  onDevLog: 'app:devlog'
 } as const

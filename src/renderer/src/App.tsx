@@ -286,18 +286,7 @@ export default function App(): React.JSX.Element {
       <aside className="panel">
         <div className="panel-top">
           <header className="panel-header">
-            <div className="panel-header-row">
-              <LotusTitle />
-              <button
-                type="button"
-                className="app-relaunch-btn"
-                title="Reiniciar Lotus (fecha e abre de novo)"
-                aria-label="Reiniciar Lotus"
-                onClick={() => void window.companion.relaunchApp()}
-              >
-                ↻
-              </button>
-            </div>
+            <LotusTitle />
             <div className="status-indicators" role="group" aria-label="Estado da IA e memória">
               <StatusIndicator
                 label={llmStatus.shortLabel}

@@ -9,6 +9,7 @@ import { buildIronicReply } from './ironic'
 import { findDuplicateInPlan, recordAgentAction } from './memory'
 import { persistEvent, EVENT_ID_OFFSET, getCurrentSessionId } from '../memory'
 import { indexMemoryPoint } from '../memory/qdrant'
+import { enqueueMemoryWrite } from '../memory/writeQueue'
 import { planAgent } from './llmPlanner'
 import { validateAction } from './permissions'
 import { getAgentTool, listAgentToolDefinitions } from './tools'
@@ -71,13 +72,13 @@ export async function executeAgentActions(actions: AgentAction[]): Promise<Agent
 
       if (result.ok) {
         recordAgentAction(action, result.message)
-        try {
+        enqueueMemoryWrite(async () => {
           const event = persistEvent('agent_action', {
             toolId: action.toolId,
             summary: result.message,
             ...action.params
           })
-          void indexMemoryPoint({
+          await indexMemoryPoint({
             id: EVENT_ID_OFFSET + event.id,
             role: 'assistant',
             content: `${action.toolId}: ${result.message}`,
@@ -85,9 +86,7 @@ export async function executeAgentActions(actions: AgentAction[]): Promise<Agent
             sessionId: getCurrentSessionId(),
             kind: 'event'
           })
-        } catch {
-          /* non-blocking */
-        }
+        })
       }
     } catch (err) {
       const message = (err as Error).message || 'Falha ao executar a ação.'

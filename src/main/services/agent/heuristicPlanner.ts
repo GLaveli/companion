@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { extractBrowserSearchQuery, wantsBrowserSearch } from '../intent'
+import {
+  extractBrowserAppName,
+  extractBrowserSearchQuery,
+  isMeaningfulSearchQuery,
+  wantsBrowserSearch,
+  wantsOpenBrowserOnly,
+  wantsOpenGoogleHome
+} from '../intent'
 import type { AgentAction, AgentPlan, AgentToolId } from './types'
 import { actionRequiresConfirmation } from './permissions'
 
@@ -33,19 +40,6 @@ function buildPreamble(actions: AgentAction[]): string {
   return 'Posso fazer algumas coisas no seu computador — confirma aí?'
 }
 
-function wantsBrowserAutomation(text: string): boolean {
-  if (wantsBrowserSearch(text)) return true
-
-  const lower = text.toLowerCase()
-  const hasOpenBrowser =
-    /\b(?:abre|abrir|open|inicia)\s+(?:o\s+)?(?:navegador|browser|chrome|safari|edge|firefox)\b/i.test(
-      lower
-    )
-  const hasSearchVerb = /\b(?:pesquis|busca|procura|digita|procure)\b/i.test(lower)
-
-  return hasOpenBrowser && hasSearchVerb
-}
-
 /** Regex fallback when the LLM planner fails or is unavailable. */
 export function planAgentHeuristic(userText: string): AgentPlan {
   const text = userText.trim()
@@ -62,9 +56,16 @@ export function planAgentHeuristic(userText: string): AgentPlan {
     actions.push(createAction('openUrl', `Abrir ${urlInText}`, { url: urlInText }))
   }
 
-  if (wantsBrowserAutomation(text)) {
+  if (wantsOpenBrowserOnly(text)) {
+    if (wantsOpenGoogleHome(text)) {
+      actions.push(createAction('openUrl', 'Abrir Google', { url: 'https://www.google.com' }))
+    } else {
+      const app = extractBrowserAppName(text)
+      actions.push(createAction('openApp', `Abrir ${app}`, { app }))
+    }
+  } else if (wantsBrowserSearch(text)) {
     const query = extractBrowserSearchQuery(text)
-    if (query.length >= 2) {
+    if (isMeaningfulSearchQuery(query, text)) {
       actions.push(createAction('browserSearch', `Google: "${query}"`, { query }))
     }
   }
@@ -79,7 +80,13 @@ export function planAgentHeuristic(userText: string): AgentPlan {
       .trim()
 
     const skipApps = /google|internet|web|link|site|página|pagina|navegador|browser/i
-    if (appRaw && !skipApps.test(appRaw) && !urlInText && !wantsBrowserAutomation(text)) {
+    if (
+      appRaw &&
+      !skipApps.test(appRaw) &&
+      !urlInText &&
+      !wantsOpenBrowserOnly(text) &&
+      !wantsBrowserSearch(text)
+    ) {
       actions.push(createAction('openApp', `Abrir ${appRaw}`, { app: appRaw }))
     }
   }

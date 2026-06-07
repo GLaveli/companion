@@ -99,8 +99,7 @@ const api = {
     const listener = (_e: unknown, entry: DevLogEntry): void => cb(entry)
     ipcRenderer.on(IPC.onDevLog, listener)
     return () => ipcRenderer.removeListener(IPC.onDevLog, listener)
-  },
-  relaunchApp: (): Promise<void> => ipcRenderer.invoke(IPC.appRelaunch)
+  }
 }
 
 export type CompanionApi = typeof api
