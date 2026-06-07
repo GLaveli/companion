@@ -7,7 +7,7 @@ Estrutura:
 
 - `llm/` -> arquivos `.gguf` (o "cerebro"). **Hermes 3** e o padrao do projeto;
   Qwen e alternativa leve opcional.
-- `whisper/` -> modelo `ggml-tiny.bin` + binário whisper-cli (instale com `npm run setup:stt`).
+- `whisper/` -> `ggml-base.bin` (padrão) ou outro modelo + `whisper-cli` (`npm run setup:stt`).
 
 ## Como baixar
 
@@ -21,7 +21,7 @@ oferece **Hermes 3** (padrao) ou **Qwen** (opcional).
 ```bash
 npm run setup:models        # Hermes 3 — padrao do projeto
 npm run setup:models:qwen   # Qwen — opcional, para comparacao
-npm run setup:stt           # Whisper tiny — microfone / transcrição
+npm run setup:stt           # Whisper base — microfone / transcrição
 ```
 
 Voce tambem pode colocar manualmente qualquer `.gguf` em `models/llm/`.

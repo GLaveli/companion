@@ -25,6 +25,7 @@ npm run dev
 1. **Cérebro** — se ainda não houver modelo, o painel oferece download (**Hermes 3** ~5 GB, padrão · **Qwen 2.5** ~2 GB, alternativa). Esse modelo inclui **chat, agente no SO e pesquisa interna** — não há download separado do agente.
 2. Aguarde **IA pronta** (bolinha verde) antes de conversar.
 3. **Memória** (SQLite) — ativa automaticamente; guarda o diário local sem comando extra.
+4. **Ouvido** (microfone) — opcional; instale com `npm run setup:stt` para falar em vez de digitar (ver [Ouvido](#ouvido-whisper)).
 
 ![Indicador IA pronta — bolinha verde no painel](Screenshot/IA-status.png)
 
@@ -42,6 +43,7 @@ Detalhes dos modelos: [models/README.md](models/README.md) · demais comandos: [
 
 | Recurso | O que faz | Como |
 |---------|-----------|------|
+| **Ouvido** (Whisper) | Transcreve microfone em pt-BR — fale e pause; envia sozinho | `npm run setup:stt` · ver [Ouvido](#ouvido-whisper) |
 | **Mente** (Qdrant) | Recall semântico — *«lembra do que falamos sobre jogos?»* mesmo sem a palavra exata | Ver abaixo |
 | **Voz anime** (GPT-SoVITS) | Timbré estilo personagem, offline após setup pesado | [Comandos npm](#comandos-npm) |
 
@@ -64,6 +66,7 @@ Sem Qdrant o app funciona — Memória (SQLite) continua ativa; só o recall fic
 - **Pesquisa interna** — *«pesquisa sobre X»* → busca na web e responde no chat
 - **Busca no navegador** — *«pesquisa X no Google»* → abre o browser (com confirmação)
 - **Interrupção** — nova mensagem ou microfone para a fala anterior na hora
+- **Microfone** — Whisper local (pt-BR), VAD para enviar ao pausar; sem ouvido, use o teclado
 - Atalhos sem LLM: cumprimentos (*oi*), *chega* / *para*
 
 ### Agente no computador
@@ -76,7 +79,7 @@ A Lotus pode agir no SO **com confirmação do usuário** — abrir navegador, a
 - **Olhar** — mouse, chat ou câmera (MediaPipe, local)
 - **Voz natural** — Edge TTS (**Francisca** / **Thalita**), incluída; internet ao falar
 - **Voz anime** — GPT-SoVITS local (experimental, ver comandos npm)
-- **Painel** — avatar, voz, cérebro, CPU/RAM, status da IA
+- **Painel** — avatar, voz, cérebro, ouvido, CPU/RAM, status da IA
 
 ### Menu ⚙ (canto da stage)
 
@@ -97,6 +100,8 @@ Referência completa — para começar, use só a [instalação básica](#instal
 | `npm run setup:live2d` | Assets Live2D bundled |
 | `npm run setup:models` | Baixa Hermes 3 8B GGUF (~5 GB) — alternativa ao painel Cérebro |
 | `npm run setup:models:qwen` | Baixa Qwen 2.5 3B GGUF (~2 GB) |
+| `npm run setup:stt` | Instala Whisper **base** (~141 MB) + `whisper-cli` — microfone |
+| `npm run setup:stt:tiny` | Whisper tiny (~39 MB) — mais leve, menos preciso em pt-BR |
 | `npm run memory:qdrant` | Sobe Qdrant — Mente semântica (Docker) |
 | `npm run memory:qdrant:stop` | Para o container mind1 |
 | `npm run setup:voice-ref` | *(opcional)* Referência GPT-SoVITS — voz anime, não Francisca/Thalita |
@@ -129,6 +134,31 @@ Documentação: [docs/MEMORY.md](docs/MEMORY.md) · [fluxo detalhado](docs/lotus
 
 ---
 
+## Ouvido (Whisper)
+
+Transcrição **local** do microfone em português do Brasil. Indicador **Ouvido** no painel de status — bolinha verde quando pronto.
+
+| O que faz | Detalhe |
+|-----------|---------|
+| **STT offline** | `whisper.cpp` no seu PC — áudio não vai para nuvem |
+| **VAD** | Detecta pausa na fala e envia a mensagem sozinho |
+| **Reconexão** | Se instalar com o app aberto, conecta em segundos (sem reiniciar) |
+| **Sem ouvido** | Chat por teclado continua normal |
+
+**Instalação** (terminal, fora do Electron — requer `cmake` e compilador C++):
+
+```bash
+npm run setup:stt                 # Whisper base (~141 MB) — recomendado
+npm run setup:stt:tiny            # tiny (~39 MB) — mais rápido, pior em pt-BR
+npm run setup:stt -- --model small   # small (~466 MB) — melhor precisão
+```
+
+Depois reinicie `npm run dev` se já estava aberto. Modelos ficam em `models/whisper/` (não versionados).
+
+![Indicador Ouvido — Whisper pronto no painel](Screenshot/ears-status.png)
+
+---
+
 ## Documentação
 
 - [Checklist e roadmap](CHECKLIST.md)
@@ -149,6 +179,7 @@ src/
 │   │   ├── memory/         # SQLite (Memória) + Qdrant (Mente)
 │   │   ├── intent/         # Browser vs pesquisa interna
 │   │   ├── llm.ts          # Chat + research
+│   │   ├── stt/            # Whisper local (Ouvido)
 │   │   ├── search/         # Busca web
 │   │   └── tts/            # Síntese de voz
 │   └── index.ts            # IPC Electron
@@ -168,6 +199,6 @@ Screenshot/                 # Capturas de tela
 ## Observações
 
 - **Câmera** — permissão local; MediaPipe no renderer, nada enviado à internet
-- **Microfone / STT** — Whisper em integração; use texto se a transcrição falhar no seu ambiente
+- **Microfone / STT** — Whisper local via `npm run setup:stt`; macOS pede permissão de microfone na 1ª gravação
 - **Agente** — ações destrutivas pedem confirmação; arquivos/pastas ainda não implementados (ver [CHECKLIST.md](CHECKLIST.md))
 - Modelos Live2D oficiais seguem licença Live2D (uso não comercial). Ver licença de cada modelo externo
