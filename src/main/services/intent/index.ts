@@ -1,7 +1,11 @@
 export {
   extractBrowserSearchQuery,
+  extractBrowserAppName,
   extractResearchTopic,
+  isMeaningfulSearchQuery,
   mightNeedAgentAction,
   wantsAnswerResearch,
-  wantsBrowserSearch
+  wantsBrowserSearch,
+  wantsOpenBrowserOnly,
+  wantsOpenGoogleHome
 } from './searchIntent'

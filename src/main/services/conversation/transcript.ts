@@ -5,6 +5,7 @@ import {
   persistTurn,
   searchTurns
 } from '../memory'
+import { enqueueMemoryWrite } from '../memory/writeQueue'
 import { indexMemoryPoint, isQdrantEnabled, searchQdrant } from '../memory/qdrant'
 
 export interface TranscriptTurn {
@@ -29,19 +30,19 @@ export function recordTranscriptTurn(role: TranscriptTurn['role'], content: stri
   turns.push({ role, content: trimmed, at })
   while (turns.length > MAX_TURNS) turns.shift()
 
-  try {
+  enqueueMemoryWrite(async () => {
     const saved = persistTurn(role, trimmed)
-    void indexMemoryPoint({
-      id: saved.id,
-      role,
-      content: trimmed,
-      at: saved.at,
-      sessionId: saved.sessionId,
-      kind: 'turn'
-    })
-  } catch (err) {
-    console.warn('[transcript] persist failed:', (err as Error).message)
-  }
+    if (role === 'user') {
+      await indexMemoryPoint({
+        id: saved.id,
+        role,
+        content: trimmed,
+        at: saved.at,
+        sessionId: saved.sessionId,
+        kind: 'turn'
+      })
+    }
+  })
 }
 
 export function getRecentTranscript(count = 10): TranscriptTurn[] {
@@ -52,12 +53,24 @@ export function resetTranscript(): void {
   turns.length = 0
 }
 
-export function formatTranscriptForPrompt(maxTurns = 8): string {
-  const recent = getRecentTranscript(maxTurns)
-  if (recent.length <= 1) return ''
+export function formatTranscriptForPrompt(currentUserText?: string, maxTurns = 6): string {
+  let recent = getRecentTranscript(maxTurns + 2)
+
+  if (currentUserText) {
+    const trimmed = currentUserText.trim()
+    while (
+      recent.length &&
+      recent[recent.length - 1].role === 'user' &&
+      recent[recent.length - 1].content.trim() === trimmed
+    ) {
+      recent = recent.slice(0, -1)
+    }
+  }
+
+  if (recent.length === 0) return ''
 
   return (
-    'Histórico REAL desta sessão (use só isso — nunca invente conversas):\n' +
+    'Histórico desta conversa (só use se for relevante para a pergunta ATUAL):\n' +
     recent.map((t) => `${t.role === 'user' ? 'Usuário' : 'Lotus'}: ${t.content}`).join('\n')
   )
 }
@@ -93,6 +106,14 @@ export async function buildRecallReply(excludeCurrentUserText?: string): Promise
   const topic = excludeCurrentUserText ? extractRecallTopic(excludeCurrentUserText) : null
 
   if (topic) {
+    const hits = searchTurns(topic, 6).filter(
+      (h) => h.role === 'user' && h.content.trim() !== excludeCurrentUserText?.trim()
+    )
+    if (hits.length) {
+      const unique = [...new Set(hits.map((h) => quoteTopic(h.content)))].slice(0, 3)
+      return `Sim! Encontrei conversas sobre isso — você falou ${unique.join(', ')}. Quer continuar nisso?`
+    }
+
     if (isQdrantEnabled()) {
       const semantic = await searchQdrant(topic, 8)
       const userHits = semantic.filter(
@@ -107,13 +128,6 @@ export async function buildRecallReply(excludeCurrentUserText?: string): Promise
       }
     }
 
-    const hits = searchTurns(topic, 6).filter(
-      (h) => h.role === 'user' && h.content.trim() !== excludeCurrentUserText?.trim()
-    )
-    if (hits.length) {
-      const unique = [...new Set(hits.map((h) => quoteTopic(h.content)))].slice(0, 3)
-      return `Sim! Encontrei conversas sobre isso — você falou ${unique.join(', ')}. Quer continuar nisso?`
-    }
     return `Procurei no que guardamos e não achei nada sobre «${topic}». Quer me contar de novo?`
   }
 

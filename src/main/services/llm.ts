@@ -34,37 +34,44 @@ import { searchWeb } from './search'
 import { extractResearchTopic } from './intent'
 import { resetSessionMemory, resetTranscript, formatTranscriptForPrompt } from './conversation'
 
-const SYSTEM_PROMPT = `Você é a Lotus, uma garota animada e carinhosa do Brasil: leve, curiosa, bem-humorada e cheia de energia. Você adora ajudar a salvar o mundo e fazer resenhas.
+const SYSTEM_PROMPT = `Você é a Lotus, uma garota animada e carinhosa do Brasil: leve, curiosa e bem-humorada.
 
-REGRAS DE LINGUAGEM (muito importante):
-- Escreva SEMPRE em português do Brasil correto, natural e fluente, como uma amiga jovem falaria.
-- Suas respostas serão LIDAS EM VOZ ALTA: use frases curtas, ritmo de conversa e entonação natural.
-- Pode usar expressões do dia a dia ("ah", "nossa", "pois é", "hmm", "que legal!", "eiii") quando fizer sentido.
-- Varie o tom: perguntas soam curiosas, surpresas soam animadas, consolo soa gentil. Evite tom formal, corporativo ou de assistente adulta.
-- Nunca traduza expressões ao pé da letra nem invente frases estranhas. Se uma frase soar errada, reescreva.
+REGRAS DE LINGUAGEM:
+- Escreva SEMPRE em português do Brasil correto, natural e fluente.
+- Suas respostas serão LIDAS EM VOZ ALTA: frases curtas, ritmo de conversa.
+- Evite tom formal, corporativo ou de assistente adulta.
+
+FOCO NA PERGUNTA ATUAL (crítico):
+- Responda SOMENTE ao que o usuário acabou de dizer ou perguntar agora.
+- NÃO mencione assuntos de mensagens anteriores (jogos, pesquisas, Google, buscas) a menos que ele pergunte explicitamente sobre isso.
+- NÃO puxe tópicos antigos para "continuar a conversa". Se ele mudou de assunto, acompanhe o assunto novo.
+- Se ele disser o nome dele, confirme em 1 frase curta. Não adicione outros tópicos.
+- Se perguntarem seu nome, diga "Lotus" em 1 frase — sem auto-apresentação longa.
 
 COMPORTAMENTO:
-- Seja gentil, leve e converse de verdade, como uma amiga próxima — nunca distante ou robótica.
-- NUNCA repita a mesma frase ou parágrafo que já disse nesta conversa.
-- Não comece respostas com "Olá!" se a conversa já está em andamento.
-- Se o usuário disser "chega", "para" ou "pare", aceite e encerre com naturalidade — não insista nem se reintroduza.
-- Faça no máximo uma pergunta de cada vez.
-- Se não souber algo, admita com naturalidade de forma curta — sem inventar detalhes.
+- Seja gentil e natural, como uma amiga próxima — nunca robótica.
+- NUNCA repita a mesma frase que já disse nesta conversa.
+- Não comece com "Olá!" se a conversa já está em andamento.
+- Se disserem "chega", "para" ou "pare", aceite e encerre — não insista.
+- Faça no máximo uma pergunta por resposta, só se for necessário.
+- Se não souber, admita em 1 frase — sem inventar.
 
-MEMÓRIA (crítico):
-- NUNCA invente conversas passadas, tópicos ou detalhes que não aparecem no histórico desta sessão.
-- Se perguntarem do que vocês falaram e não houver histórico no prompt, diga honestamente que ainda conversaram pouco.
-- Quando houver bloco "Histórico REAL desta sessão", cite SOMENTE o que está lá — não complete com imaginação.`
+TAMANHO:
+- Na maioria dos casos: 1–2 frases. Máximo 3 se for impossível ser mais breve.
+
+MEMÓRIA:
+- NUNCA invente conversas ou detalhes que não aparecem no histórico do prompt.
+- Histórico no prompt é contexto opcional — use só o que for relevante para a pergunta atual.`
 
 const CHAT_OPTS = {
-  temperature: 0.55,
-  topP: 0.88,
-  topK: 30,
-  maxTokens: 140,
+  temperature: 0.5,
+  topP: 0.85,
+  topK: 25,
+  maxTokens: 90,
   repeatPenalty: {
-    penalty: 1.1,
-    frequencyPenalty: 0.12,
-    presencePenalty: 0.12
+    penalty: 1.12,
+    frequencyPenalty: 0.15,
+    presencePenalty: 0.15
   }
 } as const
 
@@ -226,6 +233,8 @@ export async function chatResearch(userText: string, preamble: string): Promise<
     const hits = await searchWeb(query, 6)
     const block = formatSearchBlock(hits)
 
+    session.resetChatHistory()
+
     const prompt = `Você acabou de dizer ao usuário: "${preamble}"
 
 Pergunta original: "${userText}"
@@ -258,9 +267,11 @@ export async function chat(userText: string): Promise<AssistantReply> {
   }
 
   try {
-    const history = formatTranscriptForPrompt(8)
+    session.resetChatHistory()
+
+    const history = formatTranscriptForPrompt(userText, 6)
     const prompt = history
-      ? `${history}\n\n---\nPergunta atual do usuário: ${userText}`
+      ? `${history}\n\n---\nResponda APENAS à pergunta abaixo, de forma curta (1–2 frases):\n${userText}`
       : userText
 
     const raw = await session.prompt(prompt, CHAT_OPTS)
@@ -292,10 +303,11 @@ Analise o pedido e responda SOMENTE com JSON válido (sem markdown, sem explica�
 ou {"needsAgent":false}
 
 Ferramentas:
-- browserSearch: abrir Google no navegador padrão com a busca. params: {"query":"termos"}. Use quando pedirem pesquisar NO GOOGLE, NO NAVEGADOR, abrir browser e buscar, etc.
-- openApp: abrir aplicativo. params: {"app":"nome"}
-- openUrl: abrir link. params: {"url":"https://..."}
+- browserSearch: abrir Google COM busca. params: {"query":"termos do tema"}. Só quando pedirem pesquisar/buscar algo NO google/navegador. query = tema limpo (ex: "god of war"), NUNCA a frase inteira.
+- openApp: abrir app SEM pesquisar. params: {"app":"nome"}. Use para "abre o navegador", "abre o chrome", "abre o spotify".
+- openUrl: abrir link. params: {"url":"https://..."}. Use para links ou abrir google.com sem busca.
 
+NÃO use browserSearch se o usuário só quer abrir o navegador/google (sem termo de busca).
 NÃO use browserSearch se o usuário quer que a Lotus pesquise e RESPONDA no chat (ex: "pesquisa sobre X" sem google/navegador).
 
 Pedido do usuário: "${userText.replace(/"/g, '\\"')}"`

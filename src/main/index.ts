@@ -10,9 +10,10 @@ import { listLlmModelOptions } from './services/llmProfile'
 import {
   tryConversationShortcut,
   tryBrowserSearchCommand,
+  tryOpenBrowserCommand,
   tryRecallShortcut,
-  recordTranscriptTurn,
-  hydrateTranscript
+  tryPersonalFactShortcut,
+  recordTranscriptTurn
 } from './services/conversation'
 import { closeMemoryDb, checkMenteHealth, checkSqliteHealth, getVectorSize, initMemory, initQdrant, shutdownQdrant } from './services/memory'
 import type { MemoryIndicatorState } from '../shared/types'
@@ -50,7 +51,7 @@ let memoriaEverReady = false
 let menteEverReady = false
 let memoryHealthTimer: ReturnType<typeof setInterval> | null = null
 
-const MEMORY_HEALTH_MS = 30_000
+const MEMORY_HEALTH_MS = 60_000
 const MENTE_SETUP_CMD = 'npm run memory:qdrant'
 
 function createWindow(): void {
@@ -179,11 +180,18 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.llmShortcut, async (_e, text: string) => {
     devLog('ipc', 'shortcut', text.slice(0, 80))
+    const personal = tryPersonalFactShortcut(text)
+    if (personal) {
+      devLog('ipc', 'nome ok', personal.text.slice(0, 60))
+      return personal
+    }
     const recall = await tryRecallShortcut(text)
     if (recall) {
       devLog('ipc', 'recall ok', recall.text.slice(0, 60))
       return recall
     }
+    const openBrowser = await tryOpenBrowserCommand(text)
+    if (openBrowser) return openBrowser
     const browser = await tryBrowserSearchCommand(text)
     if (browser) return browser
     return tryConversationShortcut(text)
@@ -321,9 +329,6 @@ app.whenReady().then(async () => {
   registerIpc()
 
   const recentTurns = initMemory()
-  hydrateTranscript(
-    recentTurns.map((t) => ({ role: t.role, content: t.content, at: t.at }))
-  )
   applyMemoriaStatus(checkSqliteHealth())
   if (memoriaReady && recentTurns.length > 0) {
     memoriaDetail = `${recentTurns.length} turno(s) carregado(s)`

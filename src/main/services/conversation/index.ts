@@ -7,4 +7,6 @@ export {
 } from './transcript'
 export { isSimpleGreeting, isStopCommand, tryConversationShortcut } from './shortcuts'
 export { tryBrowserSearchCommand } from './browserSearch'
+export { tryOpenBrowserCommand } from './openBrowser'
 export { tryRecallShortcut } from './recall'
+export { tryPersonalFactShortcut } from './personalFacts'

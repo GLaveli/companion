@@ -25,9 +25,10 @@ Use as ferramentas disponíveis quando o pedido exigir ação no PC (abrir app, 
 NÃO use ferramentas se o usuário só quer conversar, pesquisa para responder no chat, ou cumprimentos.
 NÃO execute nada além de chamar a ferramenta correta — a Lotus pedirá confirmação depois.
 
-browserSearch = pesquisar NO GOOGLE/Navegador (não pesquisa interna).
-openApp = abrir aplicativo instalado.
-openUrl = abrir um link http(s).`
+openApp = SOMENTE abrir um app instalado, SEM pesquisar. Ex: "abre o navegador", "abre o chrome", "abre o spotify".
+browserSearch = abrir Google COM busca — params.query deve ser o TEMA (ex: "receita de bolo"), NUNCA o pedido inteiro.
+  NÃO use browserSearch se só querem abrir o navegador/google sem termo de busca.
+openUrl = abrir um link http(s) ou homepage (ex: https://www.google.com).`
 
 export function getAgentPlanSystemPrompt(): string {
   return PLAN_SYSTEM
@@ -37,7 +38,7 @@ export function createPlanFunctions(collect: (action: AgentAction) => void) {
   return {
     browserSearch: defineChatSessionFunction({
       description:
-        'Abrir o Google no navegador padrão com a busca. Use quando pedirem pesquisar NO google/navegador.',
+        'Abrir Google com busca. Use SOMENTE quando houver termo de pesquisa claro (ex: "pesquisa bolo no google"). params.query = tema limpo, sem "no google" nem o pedido inteiro.',
       params: {
         type: 'object',
         properties: {
@@ -52,7 +53,8 @@ export function createPlanFunctions(collect: (action: AgentAction) => void) {
     }),
 
     openApp: defineChatSessionFunction({
-      description: 'Abrir um aplicativo instalado (Chrome, Spotify, Terminal, etc.).',
+      description:
+        'Abrir app instalado SEM pesquisar. Use para "abre o navegador", "abre o chrome", "abre o spotify", etc.',
       params: {
         type: 'object',
         properties: {

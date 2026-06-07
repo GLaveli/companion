@@ -1,8 +1,9 @@
 import { shell } from 'electron'
 import type { AssistantReply } from '../../../shared/types'
-import { extractBrowserSearchQuery, wantsBrowserSearch } from '../intent'
+import { extractBrowserSearchQuery, isMeaningfulSearchQuery, wantsBrowserSearch } from '../intent'
 import { devLog } from '../devLog'
 import { persistEvent, EVENT_ID_OFFSET, getCurrentSessionId } from '../memory'
+import { enqueueMemoryWrite } from '../memory/writeQueue'
 import { indexMemoryPoint } from '../memory/qdrant'
 
 function googleSearchUrl(query: string): string {
@@ -16,8 +17,8 @@ export async function tryBrowserSearchCommand(text: string): Promise<AssistantRe
   }
 
   const query = extractBrowserSearchQuery(text)
-  if (query.length < 2) {
-    devLog('browser', 'termo de busca inválido', text)
+  if (!isMeaningfulSearchQuery(query, text)) {
+    devLog('browser', 'sem termo de busca — ignorando atalho Google', text.slice(0, 60))
     return null
   }
 
@@ -27,9 +28,9 @@ export async function tryBrowserSearchCommand(text: string): Promise<AssistantRe
   try {
     await shell.openExternal(url)
     devLog('browser', 'Google aberto', url)
-    try {
+    enqueueMemoryWrite(async () => {
       const event = persistEvent('browser_search', { query })
-      void indexMemoryPoint({
+      await indexMemoryPoint({
         id: EVENT_ID_OFFSET + event.id,
         role: 'user',
         content: `Pesquisa no Google: ${query}`,
@@ -37,9 +38,7 @@ export async function tryBrowserSearchCommand(text: string): Promise<AssistantRe
         sessionId: getCurrentSessionId(),
         kind: 'event'
       })
-    } catch (err) {
-      devLog('memory', 'falha ao guardar busca', (err as Error).message)
-    }
+    })
     return {
       text: `Pronto! Abri o Google com «${query}» no seu navegador.`,
       emotion: 'happy'
