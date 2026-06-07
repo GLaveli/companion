@@ -12,16 +12,47 @@ Companion de desktop com **IA local**: avatar **Live2D** animado, chat por texto
 
 ## Começar
 
-1. Instale dependências e assets — ver [Comandos npm](#comandos-npm).
-2. Abra com `npm run dev`.
-3. Na **primeira abertura**, se ainda não houver modelo instalado, o painel **Cérebro** oferece download pela interface (**Hermes 3** ~5 GB, padrão · **Qwen 2.5** ~2 GB, alternativa leve).
-4. Aguarde **IA pronta** (bolinha verde) antes de conversar.
+### Instalação básica
+
+```bash
+npm install
+npm run setup:live2d
+npm run dev
+```
+
+### Primeira abertura (no app)
+
+1. **Cérebro** — se ainda não houver modelo, o painel oferece download (**Hermes 3** ~5 GB, padrão · **Qwen 2.5** ~2 GB, alternativa). Esse modelo inclui **chat, agente no SO e pesquisa interna** — não há download separado do agente.
+2. Aguarde **IA pronta** (bolinha verde) antes de conversar.
+3. **Memória** (SQLite) — ativa automaticamente; guarda o diário local sem comando extra.
 
 ![Indicador IA pronta — bolinha verde no painel](Screenshot/IA-status.png)
 
+### Voz natural (incluída — sem comando extra)
+
+A voz padrão usa **Edge TTS** (**Francisca** ou **Thalita**, pt-BR) — já vem no app, sem `npm run setup:voice`. Escolha e ajuste tom/velocidade em **⚙ → Voz**.
+
+> **Importante:** ao falar, precisa de **internet**. Sem conexão o app cai no fallback do sistema (Web Speech) — soa robótico e estraga a experiência. Os comandos `setup:voice*` são só para a **voz anime experimental** (GPT-SoVITS), não para Francisca/Thalita.
+
 > Hermes 8B + Electron + Live2D usa bastante RAM. Em dev, feche apps pesados em paralelo se o sistema ficar lento.
 
-Detalhes dos modelos: [models/README.md](models/README.md)
+Detalhes dos modelos: [models/README.md](models/README.md) · demais comandos: [Comandos npm](#comandos-npm)
+
+### Opcional — melhorar a experiência
+
+| Recurso | O que faz | Como |
+|---------|-----------|------|
+| **Mente** (Qdrant) | Recall semântico — *«lembra do que falamos sobre jogos?»* mesmo sem a palavra exata | Ver abaixo |
+| **Voz anime** (GPT-SoVITS) | Timbré estilo personagem, offline após setup pesado | [Comandos npm](#comandos-npm) |
+
+**Mente semântica** — requer [Docker](https://www.docker.com/) em execução:
+
+```bash
+npm run memory:qdrant
+npm run dev
+```
+
+Sem Qdrant o app funciona — Memória (SQLite) continua ativa; só o recall fica limitado a palavras-chave + cronologia.
 
 ---
 
@@ -37,13 +68,14 @@ Detalhes dos modelos: [models/README.md](models/README.md)
 
 ### Agente no computador
 
-A Lotus pode agir no SO **com confirmação do usuário** — abrir Google, apps ou links. Planejamento via function calling (Hermes) + fallback heurístico.
+A Lotus pode agir no SO **com confirmação do usuário** — abrir navegador, apps ou links. Usa o mesmo **Cérebro** (Hermes 3) — function calling + fallback heurístico; nada extra para instalar.
 
 ### Avatar e voz
 
 - **Live2D** — galeria integrada ou importe `.model3.json` local
 - **Olhar** — mouse, chat ou câmera (MediaPipe, local)
-- **Voz** — Edge TTS (internet ao falar) ou GPT-SoVITS local (experimental)
+- **Voz natural** — Edge TTS (**Francisca** / **Thalita**), incluída; internet ao falar
+- **Voz anime** — GPT-SoVITS local (experimental, ver comandos npm)
 - **Painel** — avatar, voz, cérebro, CPU/RAM, status da IA
 
 ### Menu ⚙ (canto da stage)
@@ -54,6 +86,8 @@ A Lotus pode agir no SO **com confirmação do usuário** — abrir Google, apps
 
 ## Comandos npm
 
+Referência completa — para começar, use só a [instalação básica](#instalação-básica) acima.
+
 | Comando | Descrição |
 |---------|-----------|
 | `npm install` | Instala dependências |
@@ -61,24 +95,18 @@ A Lotus pode agir no SO **com confirmação do usuário** — abrir Google, apps
 | `npm run build` | Build de produção |
 | `npm run preview` | Preview do build |
 | `npm run setup:live2d` | Assets Live2D bundled |
-| `npm run setup:models` | Baixa Hermes 3 8B GGUF (~5 GB) |
+| `npm run setup:models` | Baixa Hermes 3 8B GGUF (~5 GB) — alternativa ao painel Cérebro |
 | `npm run setup:models:qwen` | Baixa Qwen 2.5 3B GGUF (~2 GB) |
 | `npm run memory:qdrant` | Sobe Qdrant — Mente semântica (Docker) |
 | `npm run memory:qdrant:stop` | Para o container mind1 |
-| `npm run setup:voice-ref` | Gera referência de voz (GPT-SoVITS) |
-| `npm run setup:gptsovits` | Instala GPT-SoVITS local |
-| `npm run setup:voice` | Referência + GPT-SoVITS (tudo de uma vez) |
-| `npm run gptsovits:start` | Inicia servidor TTS local (outro terminal) |
+| `npm run setup:voice-ref` | *(opcional)* Referência GPT-SoVITS — voz anime, não Francisca/Thalita |
+| `npm run setup:gptsovits` | *(opcional)* Instala GPT-SoVITS local |
+| `npm run setup:voice` | *(opcional)* Referência + GPT-SoVITS |
+| `npm run gptsovits:start` | *(opcional)* Servidor TTS anime (outro terminal) |
 | `npm run typecheck` | Verificação TypeScript |
 | `npm run dist` | Build + instalador (plataforma atual) |
 | `npm run dist:win` | Instalador Windows (.exe) |
 | `npm run dist:mac` | Instalador macOS (.dmg) |
-
-**Primeira vez (resumo):** `npm install` → `npm run setup:live2d` → `npm run dev`
-
-**Mente semântica (opcional):** `npm run memory:qdrant` → `npm run dev`
-
-**Voz local experimental (opcional):** `npm run setup:voice-ref` → `npm run setup:gptsovits` → `npm run gptsovits:start` (outro terminal) → `npm run dev`
 
 ---
 
