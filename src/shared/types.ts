@@ -19,11 +19,88 @@ export interface ChatPlan {
   preamble?: string
 }
 
+/** Agent tool identifiers — implementations live in main/services/agent/tools/ */
+export type AgentToolId = 'openUrl' | 'openApp' | 'browserSearch'
+
+export interface AgentAction {
+  id: string
+  toolId: AgentToolId
+  label: string
+  params: Record<string, string>
+  requiresConfirmation: boolean
+}
+
+export interface AgentPlan {
+  needsAgent: boolean
+  preamble?: string
+  actions?: AgentAction[]
+  /** When set, skip execution — e.g. user repeated the same OS action. */
+  duplicateMessage?: string
+}
+
+export interface AgentToolInfo {
+  id: AgentToolId
+  label: string
+  description: string
+}
+
+export interface AgentExecuteResult {
+  ok: boolean
+  results: Array<{ actionId: string; toolId: AgentToolId; ok: boolean; message: string }>
+  summary: string
+}
+
 /** Status reported by the main process while models load. */
+export type MemoryIndicatorState = 'ready' | 'offline' | 'inactive'
+
 export interface ModelStatus {
   llmReady: boolean
   sttReady: boolean
   message: string
+  /** SQLite diary — persistent turns and events. */
+  memoriaReady: boolean
+  /** Qdrant semantic memory (mind1). */
+  menteReady: boolean
+  memoriaState: MemoryIndicatorState
+  menteState: MemoryIndicatorState
+  memoriaDetail?: string
+  menteDetail?: string
+}
+
+/** Which local GGUF profile to load — both can stay installed in models/llm/. */
+export type LlmProfileId = 'auto' | 'hermes' | 'qwen'
+
+export interface LlmModelOption {
+  id: Exclude<LlmProfileId, 'auto'>
+  label: string
+  file: string | null
+  available: boolean
+  ramHint: string
+  sizeHint: string
+  description: string
+}
+
+export type LlmDownloadPhase = 'downloading' | 'done' | 'error' | 'cancelled'
+
+export interface LlmDownloadProgress {
+  profileId: Exclude<LlmProfileId, 'auto'>
+  phase: LlmDownloadPhase
+  percent: number
+  receivedBytes: number
+  totalBytes: number
+  message: string
+}
+
+export interface LlmDownloadResult {
+  ok: boolean
+  error?: string
+  state: LlmProfileState
+}
+
+export interface LlmProfileState {
+  profile: LlmProfileId
+  activeModel: string | null
+  options: LlmModelOption[]
 }
 
 /** TTS engine identifier. */
@@ -160,13 +237,29 @@ export interface VroidLink {
   note: string
 }
 
+/** Dev activity line — main process pushes to renderer log panel. */
+export interface DevLogEntry {
+  ts: number
+  source: string
+  message: string
+  detail?: string
+}
+
 export const IPC = {
   // LLM
   llmChat: 'llm:chat',
   llmPlan: 'llm:plan',
   llmResearch: 'llm:research',
+  llmShortcut: 'llm:shortcut',
+  conversationRecordTurn: 'conversation:record',
   llmStatus: 'llm:status',
   llmReset: 'llm:reset',
+  llmGetProfile: 'llm:profile:get',
+  llmSetProfile: 'llm:profile:set',
+  llmListModels: 'llm:models:list',
+  llmDownloadModel: 'llm:model:download',
+  llmCancelDownload: 'llm:model:download:cancel',
+  onLlmDownloadProgress: 'llm:download:progress',
   // STT
   sttTranscribe: 'stt:transcribe',
   // TTS
@@ -181,6 +274,7 @@ export const IPC = {
   voicePreviewEdge: 'voice:preview-edge',
   // Avatar
   avatarPick: 'avatar:pick',
+  avatarResolveModelUrl: 'avatar:resolve-model-url',
   avatarLoad: 'avatar:load',
   avatarSave: 'avatar:save',
   avatarCatalogCurated: 'avatar:catalog:curated',
@@ -193,6 +287,12 @@ export const IPC = {
   avatarAnimationLoad: 'avatar:animation:load',
   avatarAnimationSave: 'avatar:animation:save',
   systemMetrics: 'system:metrics',
+  // Agent (OS automation)
+  agentPlan: 'agent:plan',
+  agentExecute: 'agent:execute',
+  agentListTools: 'agent:tools',
   // Status events (main -> renderer)
-  onStatus: 'app:status'
+  onStatus: 'app:status',
+  onDevLog: 'app:devlog',
+  appRelaunch: 'app:relaunch'
 } as const

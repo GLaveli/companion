@@ -1,21 +1,38 @@
 import {
   getLlama,
   LlamaChatSession,
-  defineChatSessionFunction,
+  InsufficientMemoryError,
   type Llama,
   type LlamaModel,
   type LlamaContext
 } from 'node-llama-cpp'
+import os from 'node:os'
 import type { AssistantReply, ChatPlan, Emotion } from '../../shared/types'
-import { VOICE_PREVIEW_LINE } from '../../shared/voiceText'
-import { findLlmModel } from './paths'
+import { describeLlmModel } from './paths'
+import {
+  describeLlmProfile,
+  loadLlmProfile,
+  resolveLlmModel,
+  saveLlmProfile,
+  listLlmModelOptions
+} from './llmProfile'
+import {
+  getChatContextSize,
+  getLlmLoadHint,
+  PLANNER_CONTEXT_SIZE
+} from './llmConfig'
+import { devLog } from './devLog'
+import type { LlmProfileId, LlmProfileState } from '../../shared/types'
 import {
   buildResearchAck,
   buildSearchQuery,
   formatSearchBlock,
   needsWebResearch
 } from './research'
+import { researchTopicHint } from './research/queryBuilder'
 import { searchWeb } from './search'
+import { extractResearchTopic } from './intent'
+import { resetSessionMemory, resetTranscript, formatTranscriptForPrompt } from './conversation'
 
 const SYSTEM_PROMPT = `Você é a Lotus, uma garota animada e carinhosa do Brasil: leve, curiosa, bem-humorada e cheia de energia. Você adora ajudar a salvar o mundo e fazer resenhas.
 
@@ -25,76 +42,167 @@ REGRAS DE LINGUAGEM (muito importante):
 - Pode usar expressões do dia a dia ("ah", "nossa", "pois é", "hmm", "que legal!", "eiii") quando fizer sentido.
 - Varie o tom: perguntas soam curiosas, surpresas soam animadas, consolo soa gentil. Evite tom formal, corporativo ou de assistente adulta.
 - Nunca traduza expressões ao pé da letra nem invente frases estranhas. Se uma frase soar errada, reescreva.
-- Cumprimente de forma leve (ex: "${VOICE_PREVIEW_LINE}").
 
 COMPORTAMENTO:
 - Seja gentil, leve e converse de verdade, como uma amiga próxima — nunca distante ou robótica.
+- NUNCA repita a mesma frase ou parágrafo que já disse nesta conversa.
+- Não comece respostas com "Olá!" se a conversa já está em andamento.
+- Se o usuário disser "chega", "para" ou "pare", aceite e encerre com naturalidade — não insista nem se reintroduza.
 - Faça no máximo uma pergunta de cada vez.
-- Quando o usuário perguntar sobre fatos atuais, notícias ou algo que você não sabe, use a ferramenta de busca na web. Nunca invente fontes nem dados.
-- Depois de buscar, responda em português com o que os resultados dizem (nome do jogo/filme, anúncio, plataforma, data se houver). Não diga só "pesquisei" — conte o que achou.
-- Se não souber algo e não for caso de busca, admita com naturalidade de forma curta — sem inventar detalhes.`
+- Se não souber algo, admita com naturalidade de forma curta — sem inventar detalhes.
+
+MEMÓRIA (crítico):
+- NUNCA invente conversas passadas, tópicos ou detalhes que não aparecem no histórico desta sessão.
+- Se perguntarem do que vocês falaram e não houver histórico no prompt, diga honestamente que ainda conversaram pouco.
+- Quando houver bloco "Histórico REAL desta sessão", cite SOMENTE o que está lá — não complete com imaginação.`
+
+const CHAT_OPTS = {
+  temperature: 0.55,
+  topP: 0.88,
+  topK: 30,
+  maxTokens: 140,
+  repeatPenalty: {
+    penalty: 1.1,
+    frequencyPenalty: 0.12,
+    presencePenalty: 0.12
+  }
+} as const
+
+const RESEARCH_OPTS = {
+  temperature: 0.65,
+  topP: 0.9,
+  topK: 40,
+  maxTokens: 260,
+  repeatPenalty: {
+    penalty: 1.12,
+    frequencyPenalty: 0.15,
+    presencePenalty: 0.15
+  }
+} as const
 
 let llama: Llama | null = null
 let model: LlamaModel | null = null
 let context: LlamaContext | null = null
 let session: LlamaChatSession | null = null
+let loadedProfile: LlmProfileId = 'auto'
+
+async function unloadLlm(): Promise<void> {
+  session = null
+  if (context) {
+    await context.dispose()
+    context = null
+  }
+  if (model) {
+    await model.dispose()
+    model = null
+  }
+}
+
+export async function getLlmProfileState(): Promise<LlmProfileState> {
+  const profile = loadedProfile || (await loadLlmProfile())
+  const modelPath = resolveLlmModel(profile)
+  return {
+    profile,
+    activeModel: modelPath ? describeLlmModel(modelPath) : null,
+    options: listLlmModelOptions()
+  }
+}
+
+export async function reloadLlm(profile?: LlmProfileId): Promise<{ ready: boolean; message: string }> {
+  if (profile) {
+    await saveLlmProfile(profile)
+    loadedProfile = profile
+  } else {
+    loadedProfile = await loadLlmProfile()
+  }
+
+  await unloadLlm()
+  resetSessionMemory()
+  return initLlm(loadedProfile)
+}
+
+export async function initLlm(profile?: LlmProfileId): Promise<{ ready: boolean; message: string }> {
+  loadedProfile = profile ?? (await loadLlmProfile())
+  const modelPath = resolveLlmModel(loadedProfile)
+  if (!modelPath) {
+    return {
+      ready: false,
+      message:
+        'Nenhum cérebro instalado. Escolha Hermes 3 ou Qwen no painel abaixo para baixar.'
+    }
+  }
+  try {
+    if (!llama) {
+      llama = await getLlama({
+        maxThreads: Math.min(6, Math.max(2, Math.floor(os.cpus().length / 2)))
+      })
+    }
+
+    model = await llama.loadModel({ modelPath })
+    context = await model.createContext({
+      contextSize: getChatContextSize(modelPath),
+      batchSize: 256,
+      threads: Math.min(4, Math.max(2, Math.floor(os.cpus().length / 2)))
+    })
+
+    console.log('[llm] context size:', context.contextSize)
+
+    session = new LlamaChatSession({
+      contextSequence: context.getSequence(),
+      systemPrompt: SYSTEM_PROMPT
+    })
+
+    const hint = getLlmLoadHint(modelPath)
+    if (hint) devLog('llm', 'dica RAM', hint)
+
+    return {
+      ready: true,
+      message: `Modelo carregado: ${describeLlmProfile(loadedProfile, modelPath)}`
+    }
+  } catch (err) {
+    console.error('[llm] failed to load model:', err)
+    if (err instanceof InsufficientMemoryError) {
+      return {
+        ready: false,
+        message:
+          'Memória insuficiente para carregar o modelo. Feche outros apps e tente de novo.'
+      }
+    }
+    return { ready: false, message: `Falha ao carregar o modelo: ${(err as Error).message}` }
+  }
+}
 
 export function isLlmReady(): boolean {
   return session !== null
 }
 
-export async function initLlm(): Promise<{ ready: boolean; message: string }> {
-  const modelPath = findLlmModel()
-  if (!modelPath) {
-    return {
-      ready: false,
-      message:
-        'Nenhum modelo LLM encontrado em models/llm. Rode "npm run setup:models" ou coloque um arquivo .gguf nessa pasta.'
-    }
-  }
-  try {
-    llama = await getLlama()
-    model = await llama.loadModel({ modelPath })
-    context = await model.createContext()
-    session = new LlamaChatSession({
-      contextSequence: context.getSequence(),
-      systemPrompt: SYSTEM_PROMPT
-    })
-    return { ready: true, message: `Modelo carregado: ${modelPath.split(/[\\/]/).pop()}` }
-  } catch (err) {
-    console.error('[llm] failed to load model:', err)
-    return { ready: false, message: `Falha ao carregar o modelo: ${(err as Error).message}` }
-  }
-}
+/**
+ * Short-lived planner session — separate tiny context, disposed after use.
+ * Avoids keeping two full KV caches in RAM at startup.
+ */
+export async function withEphemeralPlanner<T>(
+  systemPrompt: string,
+  run: (plannerSession: LlamaChatSession) => Promise<T>
+): Promise<T | null> {
+  if (!model) return null
 
-const functions = {
-  webSearch: defineChatSessionFunction({
-    description:
-      'Pesquisa na internet por notícias e fatos recentes. Para jogos, filmes e tech globais, prefira termos em INGLÊS (ex: "God of War Laufey 2026", "PlayStation State of Play").',
-    params: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'Termos de busca curtos e específicos (idealmente em inglês para notícias globais)'
-        }
-      }
-    } as const,
-    async handler({ query }: { query: string }) {
-      const hits = await searchWeb(query, 8)
-      if (!hits.length) {
-        return { results: 'Nenhum resultado encontrado. Tente termos em inglês ou mais específicos.' }
-      }
-      return {
-        results: hits
-          .map(
-            (h, i) =>
-              `[${i + 1}] ${h.title}\n${h.snippet || '(sem resumo)'}\nURL: ${h.url}`
-          )
-          .join('\n\n')
-      }
-    }
-  })
+  let plannerContext: LlamaContext | null = null
+  try {
+    plannerContext = await model.createContext({
+      contextSize: PLANNER_CONTEXT_SIZE,
+      batchSize: 128
+    })
+    const plannerSession = new LlamaChatSession({
+      contextSequence: plannerContext.getSequence(),
+      systemPrompt
+    })
+    return await run(plannerSession)
+  } catch (err) {
+    console.warn('[llm] ephemeral planner failed:', err)
+    return null
+  } finally {
+    if (plannerContext) await plannerContext.dispose()
+  }
 }
 
 export function chatPlan(userText: string): ChatPlan {
@@ -104,67 +212,112 @@ export function chatPlan(userText: string): ChatPlan {
   return { needsResearch: true, preamble: buildResearchAck(userText) }
 }
 
-const RESEARCH_OPTS = {
-  temperature: 0.65,
-  topP: 0.9,
-  topK: 40,
-  maxTokens: 320,
-  repeatPenalty: {
-    penalty: 1.12,
-    frequencyPenalty: 0.15,
-    presencePenalty: 0.15
-  }
-} as const
-
 /** Search the web and synthesize a follow-up after the spoken preamble. */
 export async function chatResearch(userText: string, preamble: string): Promise<AssistantReply> {
   if (!session) {
     return { text: 'Ainda estou carregando meu cérebro, tenta de novo em instantes.', emotion: 'thinking' }
   }
 
-  const query = buildSearchQuery(userText)
-  console.log('[llm] research search:', query)
-  const hits = await searchWeb(query, 8)
-  const block = formatSearchBlock(hits)
+  try {
+    const query = buildSearchQuery(userText)
+    const topic = extractResearchTopic(userText)
+    const hint = researchTopicHint(userText, topic)
+    console.log('[llm] research search:', query)
+    const hits = await searchWeb(query, 6)
+    const block = formatSearchBlock(hits)
 
-  const prompt = `Você acabou de dizer ao usuário: "${preamble}"
+    const prompt = `Você acabou de dizer ao usuário: "${preamble}"
 
 Pergunta original: "${userText}"
+Assunto pedido: "${topic}"
+
+${hint}
 
 Resultados da pesquisa na web:
 ${block}
 
-Com base NISSO, responda agora em português do Brasil como Lotus (garota animada, tom de resenha).
+Com base SOMENTE nos resultados acima, responda em português do Brasil como Lotus (garota animada, tom de resenha).
 - 3 a 5 frases curtas, boas para voz.
-- Diga o que é (sinopse/anúncio) e sua opinião leve.
-- NÃO diga que não sabe, que vai pesquisar ou peça pro usuário explicar — você já pesquisou.
-- Se for jogo God of War Laufey: protagonista Faye/Laufey, PS5, anunciado no State of Play 2026.`
+- NÃO cumprimente de novo (sem "Olá!").
+- NÃO invente fatos que não aparecem nos resultados.
+- Diga o que é (jogo/filme/notícia) e sua opinião leve.
+- NÃO diga que vai pesquisar — você já pesquisou.`
 
-  const text = await session.prompt(prompt, RESEARCH_OPTS)
-  return { text: text.trim(), emotion: guessEmotion(text) }
+    const text = await session.prompt(prompt, RESEARCH_OPTS)
+    const reply = text.trim() || 'Não achei muita coisa sobre isso agora — tenta reformular?'
+    return { text: reply, emotion: guessEmotion(reply) }
+  } catch (err) {
+    console.error('[llm] research failed:', err)
+    return memoryErrorReply(err)
+  }
 }
 
 export async function chat(userText: string): Promise<AssistantReply> {
   if (!session) {
     return { text: 'Ainda estou carregando meu cérebro, tenta de novo em instantes.', emotion: 'thinking' }
   }
-  const text = await session.prompt(userText, {
-    functions,
-    // Lower temperature + penalties keep the small model coherent in pt-BR.
-    temperature: 0.6,
-    topP: 0.9,
-    topK: 40,
-    maxTokens: 300,
-    repeatPenalty: {
-      penalty: 1.15,
-      frequencyPenalty: 0.2,
-      presencePenalty: 0.2
+
+  try {
+    const history = formatTranscriptForPrompt(8)
+    const prompt = history
+      ? `${history}\n\n---\nPergunta atual do usuário: ${userText}`
+      : userText
+
+    const raw = await session.prompt(prompt, CHAT_OPTS)
+    const text = raw.trim() || 'Hmm, não consegui formular uma resposta agora — tenta de novo?'
+    return { text, emotion: guessEmotion(text) }
+  } catch (err) {
+    console.error('[llm] chat failed:', err)
+    return memoryErrorReply(err)
+  }
+}
+
+function memoryErrorReply(err: unknown): AssistantReply {
+  if (err instanceof InsufficientMemoryError) {
+    return {
+      text: 'Minha memória ficou cheia — fecha outros apps e tenta de novo?',
+      emotion: 'sad'
     }
-  })
-  return { text: text.trim(), emotion: guessEmotion(text) }
+  }
+  return {
+    text: 'Ops, deu um probleminha ao pensar — tenta de novo daqui a pouco?',
+    emotion: 'sad'
+  }
+}
+
+const AGENT_PLAN_PROMPT = (userText: string) => `Você é o planejador de ações da Lotus no computador do usuário.
+
+Analise o pedido e responda SOMENTE com JSON válido (sem markdown, sem explicação):
+{"needsAgent":true,"preamble":"frase curta em pt-BR","actions":[{"tool":"browserSearch|openApp|openUrl","params":{...},"label":"descrição curta"}]}
+ou {"needsAgent":false}
+
+Ferramentas:
+- browserSearch: abrir Google no navegador padrão com a busca. params: {"query":"termos"}. Use quando pedirem pesquisar NO GOOGLE, NO NAVEGADOR, abrir browser e buscar, etc.
+- openApp: abrir aplicativo. params: {"app":"nome"}
+- openUrl: abrir link. params: {"url":"https://..."}
+
+NÃO use browserSearch se o usuário quer que a Lotus pesquise e RESPONDA no chat (ex: "pesquisa sobre X" sem google/navegador).
+
+Pedido do usuário: "${userText.replace(/"/g, '\\"')}"`
+
+/** One-shot JSON plan fallback when tool calling returns no actions. */
+export async function runAgentPlanPrompt(userText: string): Promise<string | null> {
+  const raw = await withEphemeralPlanner(
+    'Você planeja ações no computador. Responda APENAS JSON válido, sem markdown nem texto extra.',
+    (plannerSession) =>
+      plannerSession.prompt(AGENT_PLAN_PROMPT(userText), {
+        temperature: 0.15,
+        maxTokens: 220,
+        topP: 0.85,
+        topK: 30
+      })
+  )
+  return raw?.trim() ?? null
 }
 
 export async function resetChat(): Promise<void> {
+  resetSessionMemory()
+  resetTranscript()
   if (context) {
     session = new LlamaChatSession({
       contextSequence: context.getSequence(),

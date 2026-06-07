@@ -27,8 +27,13 @@ function configPath(): string {
 
 /** Maps `/models/...` URL to on-disk path under renderer public assets. */
 export function resolveBundledModelPath(modelUrl: string): string | null {
-  if (!modelUrl.startsWith('/models/')) return null
-  const rel = modelUrl.slice(1)
+  const normalized = modelUrl.startsWith('./')
+    ? modelUrl.slice(1)
+    : modelUrl.startsWith('/')
+      ? modelUrl
+      : `/${modelUrl}`
+  if (!normalized.startsWith('/models/')) return null
+  const rel = normalized.slice(1)
 
   const candidates = [
     join(app.getAppPath(), 'src/renderer/public', rel),
@@ -44,6 +49,23 @@ export function resolveBundledModelPath(modelUrl: string): string | null {
 
 export function bundledModelExists(modelUrl: string): boolean {
   return resolveBundledModelPath(modelUrl) !== null
+}
+
+/** Bundled `/models/...` paths break on file:// — resolve to absolute file:// for Live2D. */
+export function resolveAvatarModelUrl(modelUrl: string, preferFile = true): string {
+  if (modelUrl.startsWith('file://') || /^https?:\/\//i.test(modelUrl)) {
+    return modelUrl
+  }
+
+  if (!preferFile) {
+    if (modelUrl.startsWith('./')) return modelUrl.slice(1)
+    return modelUrl
+  }
+
+  const disk = resolveBundledModelPath(modelUrl)
+  if (disk) return pathToFileURL(disk).href
+
+  return modelUrl
 }
 
 export async function saveAvatarSelection(file: AvatarFile): Promise<void> {

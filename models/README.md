@@ -5,17 +5,25 @@ Esta pasta guarda os arquivos locais usados pela companion. Ela NAO e versionada
 
 Estrutura:
 
-- `llm/` -> coloque aqui um arquivo `.gguf` (o "cerebro"). O primeiro `.gguf`
-  encontrado e carregado automaticamente.
+- `llm/` -> arquivos `.gguf` (o "cerebro"). **Hermes 3** e o padrao do projeto;
+  Qwen e alternativa leve opcional.
 - `whisper/` -> modelos do whisper.cpp (baixados automaticamente pelo nodejs-whisper).
 
-## Como baixar automaticamente
+## Como baixar
+
+### Pela interface
+
+Abra a Lotus com `npm run dev`. Se nao houver modelo em `llm/`, o painel **Cerebro**
+oferece **Hermes 3** (padrao) ou **Qwen** (opcional).
+
+### Pelo terminal
 
 ```bash
-npm run setup:models
+npm run setup:models        # Hermes 3 — padrao do projeto
+npm run setup:models:qwen   # Qwen — opcional, para comparacao
 ```
 
-Isso baixa um modelo LLM leve (Qwen2.5 3B Instruct, ~2 GB) para `llm/`.
+Voce tambem pode colocar manualmente qualquer `.gguf` em `models/llm/`.
 
 ## Avatar 3D (opcional)
 

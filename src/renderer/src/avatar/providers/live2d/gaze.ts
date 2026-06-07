@@ -1,6 +1,7 @@
 import type { AvatarLayout } from '../../../../../shared/types'
 import { getFaceGazeTarget } from '../../faceTracking'
 import { useAvatarAnimation } from '../../animationStore'
+import { polishGazeTarget } from '../../gazePolish'
 import { NEUTRAL_GAZE, type GazeTarget } from '../../gazeTypes'
 import type { Live2DBaseSize } from './config'
 
@@ -52,18 +53,19 @@ function faceCenter(ctx: GazeContext): { x: number; y: number } {
 
 function gazeFromMouse(ctx: GazeContext): GazeTarget {
   const face = faceCenter(ctx)
-  const rangeX = ctx.stageW * 0.2
-  const rangeY = Math.max(window.innerHeight, ctx.stageH) * 0.14
+  const rangeX = ctx.stageW * 0.18
+  const rangeY = Math.max(window.innerHeight, ctx.stageH) * 0.12
   const dx = (mouseClient.x - face.x) / rangeX
   const rawDy = (mouseClient.y - face.y) / rangeY
-  const eyeX = clamp(dx, -1, 1)
-  const eyeY = clamp(-rawDy, -1, 1)
-  return {
-    eyeX,
-    eyeY,
-    angleX: clamp(eyeX * 22, -28, 28),
-    angleY: clamp(eyeY * 16, -24, 24)
+  const raw: GazeTarget = {
+    eyeX: clamp(dx, -1, 1),
+    eyeY: clamp(-rawDy, -1, 1),
+    angleX: 0,
+    angleY: 0
   }
+  raw.angleX = clamp(raw.eyeX * 24, -28, 28)
+  raw.angleY = clamp(raw.eyeY * 18, -24, 24)
+  return polishGazeTarget(raw)
 }
 
 /** Returns a gaze target, or null to leave eyes to idle motions. */
