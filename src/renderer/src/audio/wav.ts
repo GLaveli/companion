@@ -30,6 +30,41 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array
   return new Uint8Array(buffer)
 }
 
+/** Normaliza volume para o Whisper ouvir melhor fala baixa ou distante. */
+export function normalizePeak(samples: Float32Array, target = 0.85): Float32Array {
+  let peak = 0
+  for (const s of samples) peak = Math.max(peak, Math.abs(s))
+  if (peak < 0.01) return samples
+
+  const gain = Math.min(target / peak, 4)
+  const out = new Float32Array(samples.length)
+  for (let i = 0; i < samples.length; i++) out[i] = samples[i] * gain
+  return out
+}
+
+/** Remove silêncio nas pontas — o Whisper alucina menos com áudio enxuto. */
+export function trimSilence(
+  samples: Float32Array,
+  sampleRate: number,
+  threshold = 0.008,
+  padMs = 150
+): Float32Array {
+  if (samples.length === 0) return samples
+
+  const pad = Math.floor((sampleRate * padMs) / 1000)
+  let start = 0
+  let end = samples.length - 1
+
+  while (start < samples.length && Math.abs(samples[start]) < threshold) start++
+  while (end > start && Math.abs(samples[end]) < threshold) end--
+
+  start = Math.max(0, start - pad)
+  end = Math.min(samples.length - 1, end + pad)
+
+  if (end <= start) return samples
+  return samples.slice(start, end + 1)
+}
+
 /** Downsamples a Float32 buffer to the target sample rate (linear interp). */
 export function resample(input: Float32Array, fromRate: number, toRate: number): Float32Array {
   if (fromRate === toRate) return input

@@ -19,7 +19,7 @@ export {
   EVENT_ID_OFFSET,
   qdrantUrl
 } from './qdrant'
-export { checkMenteHealth, checkSqliteHealth } from './health'
+export { checkMenteHealth, checkSqliteHealth, ensureSqliteHealth } from './health'
 export { clearAllPersistentMemory } from './reset'
 export { initEmbeddings, getVectorSize } from './embeddings'
 export type {

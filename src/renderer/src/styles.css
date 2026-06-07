@@ -884,6 +884,20 @@ body,
   box-shadow: 0 0 10px #e0a657;
 }
 
+.dot.loading {
+  background: transparent;
+  box-shadow: none;
+  border: 2px solid rgba(224, 168, 90, 0.28);
+  border-top-color: #e0a85a;
+  animation: dot-spin 0.75s linear infinite;
+}
+
+@keyframes dot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .status {
   margin: 0;
   font-size: 12px;
@@ -1283,6 +1297,22 @@ body,
   background: var(--accent-2);
   color: #1a1336;
   animation: pulse 1.2s infinite;
+}
+.mic.mic--loading {
+  cursor: wait;
+  opacity: 1;
+}
+.mic:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.mic-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: dot-spin 0.75s linear infinite;
 }
 
 .gallery-overlay {

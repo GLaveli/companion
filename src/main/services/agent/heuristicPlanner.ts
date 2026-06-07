@@ -7,6 +7,7 @@ import {
   wantsOpenBrowserOnly,
   wantsOpenGoogleHome
 } from '../intent'
+import { looksLikeOpenBrowserGarble } from '../stt/sttNormalize'
 import type { AgentAction, AgentPlan, AgentToolId } from './types'
 import { actionRequiresConfirmation } from './permissions'
 
@@ -73,13 +74,16 @@ export function planAgentHeuristic(userText: string): AgentPlan {
   const openAppMatch = text.match(
     /\b(?:abre|abrir|open|inicia|iniciar|launch)(?:\s+(?:o|a|meu|minha))?\s+([a-záàâãéêíóôõúç0-9][\w\sáàâãéêíóôõúç-]{1,40})/i
   )
-  if (openAppMatch) {
+  if (looksLikeOpenBrowserGarble(text) && !wantsOpenBrowserOnly(text) && !wantsBrowserSearch(text)) {
+    actions.push(createAction('openApp', 'Abrir navegador', { app: 'navegador' }))
+  } else if (openAppMatch) {
     const appRaw = openAppMatch[1]
       .replace(/\b(?:e|depois|pra|para)\b.*/i, '')
       .replace(/\?+$/, '')
       .trim()
 
-    const skipApps = /google|internet|web|link|site|página|pagina|navegador|browser/i
+    const skipApps =
+      /google|internet|web|link|site|página|pagina|navegador|browser|pegador|regadura|negador|navedador|nevagador/i
     if (
       appRaw &&
       !skipApps.test(appRaw) &&

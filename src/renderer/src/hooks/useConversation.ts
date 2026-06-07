@@ -12,6 +12,8 @@ export function useConversation(): {
   stopListening: () => Promise<void>
 } {
   const recorder = useRef<MicRecorder | null>(null)
+  const stoppingMic = useRef(false)
+  const stopListeningRef = useRef<() => Promise<void>>(async () => undefined)
   const { setPhase, setEmotion, addMessage, setSpeaking } = useStore.getState()
   const { maybeHandleAgent } = useAgentFlow()
 
@@ -154,49 +156,81 @@ export function useConversation(): {
     [failTurn, maybeHandleAgent, pushAssistant, setPhase, setEmotion, speak]
   )
 
-  const startListening = useCallback(async () => {
-    const turn = beginUserTurn()
-    useStore.getState().setSpeaking(false)
-
-    try {
-      recorder.current = new MicRecorder()
-      await recorder.current.start()
-      if (!isCurrentTurn(turn)) {
-        void recorder.current.stop().catch(() => undefined)
-        recorder.current = null
-        return
-      }
-      setPhase('listening')
-    } catch (err) {
-      logDev('mic', 'erro', (err as Error).message)
-      if (isCurrentTurn(turn)) {
-        setPhase('idle')
-      }
-    }
-  }, [setPhase])
-
   const stopListening = useCallback(async () => {
     const rec = recorder.current
-    if (!rec) return
+    if (!rec || stoppingMic.current) return
 
+    stoppingMic.current = true
     setPhase('thinking')
+    logDev('mic', 'transcrevendo…')
 
     try {
       const wav = await rec.stop()
       const { text } = await window.companion.transcribe(wav)
+      const trimmed = text.trim()
 
-      if (text.trim()) {
-        await sendText(text)
+      logDev('mic', 'texto', trimmed.slice(0, 80) || '(vazio)')
+
+      if (trimmed) {
+        await sendText(trimmed)
       } else {
+        addMessage({
+          role: 'assistant',
+          content: 'Não entendi — pode repetir ou digitar?'
+        })
         setPhase('idle')
       }
     } catch (err) {
       logDev('mic', 'transcrição erro', (err as Error).message)
+      addMessage({
+        role: 'assistant',
+        content: 'Problema no microfone — verifica a permissão do macOS e tenta de novo.'
+      })
       setPhase('idle')
     } finally {
       recorder.current = null
+      stoppingMic.current = false
     }
-  }, [sendText, setPhase])
+  }, [addMessage, sendText, setPhase])
+
+  stopListeningRef.current = stopListening
+
+  const startListening = useCallback(async () => {
+    if (recorder.current || stoppingMic.current) return
+
+    const turn = beginUserTurn()
+    useStore.getState().setSpeaking(false)
+
+    try {
+      const mic = new MicRecorder()
+      recorder.current = mic
+      await mic.start({
+        onSilenceStop: () => {
+          void stopListeningRef.current()
+        }
+      })
+
+      if (!isCurrentTurn(turn)) {
+        mic.cancel()
+        recorder.current = null
+        return
+      }
+
+      setPhase('listening')
+      logDev('mic', 'ouvindo')
+    } catch (err) {
+      recorder.current = null
+      logDev('mic', 'erro', (err as Error).message)
+      addMessage({
+        role: 'assistant',
+        content:
+          'Não consegui abrir o microfone — autoriza em Ajustes do Sistema → Privacidade → Microfone.'
+      })
+      if (isCurrentTurn(turn)) {
+        setPhase('idle')
+      }
+    }
+  }, [addMessage, setPhase])
 
   return { sendText, startListening, stopListening }
 }

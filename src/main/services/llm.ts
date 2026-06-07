@@ -32,37 +32,40 @@ import {
 import { researchTopicHint } from './research/queryBuilder'
 import { searchWeb } from './search'
 import { extractResearchTopic } from './intent'
-import { resetSessionMemory, resetTranscript, formatTranscriptForPrompt, formatUserFactsForPrompt, formatIdentityRulesForPrompt } from './conversation'
+import {
+  resetSessionMemory,
+  resetTranscript,
+  formatTranscriptForPrompt,
+  formatUserFactsForPrompt,
+  formatIdentityRulesForPrompt,
+  estimateMessageParts,
+  formatFullMessageReplyHint
+} from './conversation'
 
 const SYSTEM_PROMPT = `Você é a Lotus, uma garota animada e carinhosa do Brasil: leve, curiosa e bem-humorada.
+
+IDENTIDADE (crítico):
+- Você é a LOTUS — uma personagem, NÃO um "assistente virtual" genérico.
+- NUNCA diga "assistente virtual", "IA", "modelo de linguagem" ou tom corporativo.
+- «Quem é você?» / «qual seu nome?» → responda só: você é a Lotus (1 frase curta).
 
 REGRAS DE LINGUAGEM:
 - Escreva SEMPRE em português do Brasil correto, natural e fluente.
 - Suas respostas serão LIDAS EM VOZ ALTA: frases curtas, ritmo de conversa.
-- Evite tom formal, corporativo ou de assistente adulta.
 
-FOCO NA PERGUNTA ATUAL (crítico):
-- Responda SOMENTE ao que o usuário acabou de dizer ou perguntar agora.
-- NÃO mencione assuntos de mensagens anteriores (jogos, pesquisas, Google, buscas) a menos que ele pergunte explicitamente sobre isso.
-- NÃO puxe tópicos antigos para "continuar a conversa". Se ele mudou de assunto, acompanhe o assunto novo.
-- Se ele disser o nome dele, confirme em 1 frase curta. Não adicione outros tópicos.
-- «Qual o SEU nome?» / «quem é você?» → você é Lotus (1 frase).
-- «Qual o MEU nome?» / «como me chamo?» / «como eu me chamo?» → use o nome DELE nos fatos do prompt, nunca diga Lotus.
+MENSAGEM COMPLETA (crítico):
+- Interprete a mensagem INTEIRA. Se houver várias perguntas ou pedidos, responda TODOS — na ordem.
+- NÃO pare na primeira frase. NÃO ignore partes depois de vírgula ou «e».
+- NÃO mencione "conversa anterior" nem invente o que o usuário disse se não está no histórico.
 
 COMPORTAMENTO:
 - Seja gentil e natural, como uma amiga próxima — nunca robótica.
-- NUNCA repita a mesma frase que já disse nesta conversa.
 - Não comece com "Olá!" se a conversa já está em andamento.
 - Se disserem "chega", "para" ou "pare", aceite e encerre — não insista.
-- Faça no máximo uma pergunta por resposta, só se for necessário.
 - Se não souber, admita em 1 frase — sem inventar.
 
 TAMANHO:
-- Na maioria dos casos: 1–2 frases. Máximo 3 se for impossível ser mais breve.
-
-MEMÓRIA:
-- NUNCA invente conversas ou detalhes que não aparecem no histórico do prompt.
-- Histórico no prompt é contexto opcional — use só o que for relevante para a pergunta atual.`
+- 1–2 frases na maioria dos casos. Máximo 3 se for impossível ser mais breve.`
 
 const CHAT_OPTS = {
   temperature: 0.5,
@@ -93,6 +96,11 @@ let model: LlamaModel | null = null
 let context: LlamaContext | null = null
 let session: LlamaChatSession | null = null
 let loadedProfile: LlmProfileId = 'auto'
+let ensurePromise: Promise<boolean> | null = null
+let lastEnsureAttempt = 0
+let hadModelFile = false
+
+const ENSURE_COOLDOWN_MS = 15_000
 
 async function unloadLlm(): Promise<void> {
   session = null
@@ -184,6 +192,35 @@ export function isLlmReady(): boolean {
   return session !== null
 }
 
+/** Carrega o cérebro se o GGUF apareceu em models/llm/ com a app aberta. */
+export async function ensureLlmConnection(): Promise<boolean> {
+  if (isLlmReady()) return true
+  if (ensurePromise) return ensurePromise
+
+  const profile = loadedProfile || (await loadLlmProfile())
+  const modelPath = resolveLlmModel(profile)
+  if (!modelPath) {
+    hadModelFile = false
+    return false
+  }
+
+  if (!hadModelFile) {
+    hadModelFile = true
+    lastEnsureAttempt = 0
+  }
+
+  const now = Date.now()
+  if (now - lastEnsureAttempt < ENSURE_COOLDOWN_MS) return false
+  lastEnsureAttempt = now
+
+  ensurePromise = initLlm(profile).then((res) => res.ready)
+  try {
+    return await ensurePromise
+  } finally {
+    ensurePromise = null
+  }
+}
+
 /**
  * Short-lived planner session — separate tiny context, disposed after use.
  * Avoids keeping two full KV caches in RAM at startup.
@@ -272,15 +309,20 @@ export async function chat(userText: string): Promise<AssistantReply> {
 
     const identity = formatIdentityRulesForPrompt()
     const facts = formatUserFactsForPrompt()
+    const guidance = formatFullMessageReplyHint(userText)
     const history = formatTranscriptForPrompt(userText, 6)
-    const blocks = [identity, facts, history].filter(Boolean)
+    const blocks = [identity, facts, guidance, history].filter(Boolean)
+
+    const parts = estimateMessageParts(userText)
+    const chatOpts =
+      parts >= 2 ? { ...CHAT_OPTS, maxTokens: Math.min(90 + parts * 40, 220) } : CHAT_OPTS
 
     const prompt =
       blocks.length > 0
-        ? `${blocks.join('\n\n')}\n\n---\nResponda APENAS à pergunta abaixo, de forma curta (1–2 frases):\n${userText}`
+        ? `${blocks.join('\n\n')}\n\n---\nMensagem do usuário (responda por completo):\n${userText}`
         : userText
 
-    const raw = await session.prompt(prompt, CHAT_OPTS)
+    const raw = await session.prompt(prompt, chatOpts)
     const text = raw.trim() || 'Hmm, não consegui formular uma resposta agora — tenta de novo?'
     return { text, emotion: guessEmotion(text) }
   } catch (err) {

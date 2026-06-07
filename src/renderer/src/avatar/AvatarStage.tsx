@@ -26,7 +26,9 @@ export function AvatarStage(): React.JSX.Element {
     const state = useStore.getState()
     state.setModelStatus({
       llmReady: state.llmReady,
-      sttReady: false,
+      sttReady: state.sttReady,
+      sttState: state.sttState,
+      sttDetail: state.sttDetail,
       message: 'Não foi possível carregar esse avatar. Voltando para o padrão.',
       memoriaReady: state.memoriaReady,
       menteReady: state.menteReady,

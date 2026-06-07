@@ -1,9 +1,6 @@
-import type { AssistantReply } from '../../../shared/types'
 import { getRecentUserMessages } from '../memory'
 import { getCachedUserName, setCachedUserName } from './sessionMemory'
 import { getRecentTranscript } from './transcript'
-
-const NAME_CORRECTION_HINT = /\b(nao|não|sim|verdade|errad|confus|corrig)/i
 
 function normalizeName(raw: string): string | null {
   const name = raw
@@ -29,6 +26,14 @@ export function extractUserNameFromText(text: string): string | null {
     /meu\s+nome\s+(?:nao|não)\s+(?:é|e)\s+\S+(?:\s+(?:e|é)\s+sim)\s+([^\s,!.?]+)/i
   )
   if (correction?.[1]) return normalizeName(correction[1])
+
+  const correctionChain = t.match(
+    /meu\s+nome\s+(?:nao|não)\s+(?:é|e)\s+\S+,?\s*eu\s+sou\s+([^\s,!.?]+)/i
+  )
+  if (correctionChain?.[1]) return normalizeName(correctionChain[1])
+
+  const euSou = t.match(/\beu\s+sou\s+([^\s,!.?]+)/i)
+  if (euSou?.[1]) return normalizeName(euSou[1])
 
   const actually = t.match(
     /(?:na\s+verdade|corrige(?:ndo)?|desculp\w*)\s*,?\s*(?:é|e|sou)\s+([^\s,!.?]+)/i
@@ -103,10 +108,9 @@ export function resolvePreviousUserName(excludeContent?: string): string | null 
 
 /** Regras fixas — sempre no prompt do chat (eu = usuário, ela = Lotus). */
 export function formatIdentityRulesForPrompt(): string {
-  return `QUEM É QUEM (obrigatório):
-- Lotus = VOCÊ (assistente). «Seu nome», «quem é você», «como você se chama» → responda Lotus.
-- Usuário = a PESSOA no chat. «Meu nome», «como me chamo», «como eu me chamo» → fale do USUÁRIO, nunca diga Lotus.
-- «Meu/minha/como me chamo/eu me chamo» = sempre o usuário. «Seu/sua/quem é você» = sempre Lotus.
+  return `QUEM É QUEM:
+- Lotus = VOCÊ (personagem). Perguntas sobre «seu nome», «quem é você» → você é a Lotus.
+- Usuário = a pessoa no chat. «Meu nome», «como me chamo» → fale do USUÁRIO, nunca diga Lotus.
 - Se não souber o nome do usuário, diga que ele ainda não te disse — não invente.`
 }
 
@@ -122,24 +126,8 @@ export function formatUserFactsForPrompt(): string | null {
   return lines.join('\n')
 }
 
-function isNameCorrection(text: string): boolean {
-  return NAME_CORRECTION_HINT.test(text)
-}
-
-/** Só quando o usuário DECLARA ou CORRIGE o nome — confirmação curta. Perguntas vão ao LLM. */
-export function tryPersonalFactShortcut(text: string): AssistantReply | null {
+/** Grava fatos do usuário (nome etc.) para o prompt — sem resposta pronta; o LLM interpreta a mensagem. */
+export function cachePersonalFactsFromText(text: string): void {
   const declaredName = extractUserNameFromText(text)
-  if (!declaredName) return null
-
-  setCachedUserName(declaredName)
-  if (isNameCorrection(text)) {
-    return {
-      text: `Ah, ${declaredName}! Anotado.`,
-      emotion: 'happy'
-    }
-  }
-  return {
-    text: `Prazer, ${declaredName}!`,
-    emotion: 'happy'
-  }
+  if (declaredName) setCachedUserName(declaredName)
 }

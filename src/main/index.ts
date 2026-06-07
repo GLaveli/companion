@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { IPC, type AvatarAnimationSettings, type AvatarFile, type AvatarLayout, type EdgeVoiceSettings, type ModelStatus } from '../shared/types'
 import { VOICE_PREVIEW_LINE } from '../shared/voiceText'
-import { initLlm, chat, chatPlan, chatResearch, resetChat, isLlmReady, reloadLlm, getLlmProfileState } from './services/llm'
+import { initLlm, chat, chatPlan, chatResearch, resetChat, isLlmReady, reloadLlm, getLlmProfileState, ensureLlmConnection } from './services/llm'
 import type { LlmProfileId } from '../shared/types'
 import { cancelLlmDownload, downloadLlmModel } from './services/llmDownload'
 import { listLlmModelOptions } from './services/llmProfile'
@@ -12,10 +12,9 @@ import {
   tryBrowserSearchCommand,
   tryOpenBrowserCommand,
   tryRecallShortcut,
-  tryPersonalFactShortcut,
   recordTranscriptTurn
 } from './services/conversation'
-import { closeMemoryDb, checkMenteHealth, checkSqliteHealth, getVectorSize, initMemory, initQdrant, shutdownQdrant } from './services/memory'
+import { closeMemoryDb, checkMenteHealth, ensureSqliteHealth, getVectorSize, initMemory, initQdrant, shutdownQdrant } from './services/memory'
 import { isMemoryRecallIntent } from './services/intent/recallIntent'
 import type { MemoryIndicatorState } from '../shared/types'
 import { bindDevLogSender, devLog } from './services/devLog'
@@ -23,7 +22,7 @@ import { getGptSoVitsStatus, previewEdgeVoice, speak } from './services/tts'
 import { startGptSoVitsServer, stopGptSoVitsServer } from './services/gptsovitsProcess'
 import { listVoiceEntries, setActiveVoiceProfile } from './services/voiceStore'
 import { getEdgeVoiceSettings, saveEdgeVoiceSettings } from './services/edgeVoiceSettings'
-import { transcribe, isSttReady } from './services/stt'
+import { transcribe, isSttReady, initStt, getSttState, getSttDetail, onSttStatusChange, ensureSttConnection } from './services/stt'
 import { pickAvatar, loadSavedAvatar, saveAvatarSelection, resolveAvatarModelUrl } from './services/avatar'
 import { loadAvatarLayout, saveAvatarLayout } from './services/avatarLayout'
 import { loadAvatarAnimation, saveAvatarAnimation } from './services/avatarAnimation'
@@ -50,9 +49,11 @@ let menteDetail = ''
 let lastStatusMessage = ''
 let memoriaEverReady = false
 let menteEverReady = false
-let memoryHealthTimer: ReturnType<typeof setInterval> | null = null
+let serviceHealthTimer: ReturnType<typeof setInterval> | null = null
+let serviceHealthBusy = false
+let lastServiceSnapshot = ''
 
-const MEMORY_HEALTH_MS = 60_000
+const SERVICE_HEALTH_MS = 3_000
 const MENTE_SETUP_CMD = 'npm run memory:qdrant'
 
 function createWindow(): void {
@@ -88,9 +89,12 @@ function createWindow(): void {
   })
 
   // Auto-grant camera/microphone for our own renderer.
-  mainWindow.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permission === 'media' || permission === 'camera')
+  const mediaPermissions = new Set(['media', 'microphone', 'camera'])
+  const session = mainWindow.webContents.session
+  session.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(mediaPermissions.has(permission))
   })
+  session.setPermissionCheckHandler((_wc, permission) => mediaPermissions.has(permission))
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (devUrl) {
@@ -105,6 +109,8 @@ function buildModelStatus(message?: string): ModelStatus {
   return {
     llmReady: isLlmReady(),
     sttReady: isSttReady(),
+    sttState: getSttState(),
+    sttDetail: getSttDetail(),
     message: lastStatusMessage,
     memoriaReady,
     menteReady,
@@ -126,8 +132,8 @@ function applyMemoriaStatus(healthy: boolean): void {
 
   memoriaState = memoriaEverReady ? 'offline' : 'inactive'
   memoriaDetail = memoriaEverReady
-    ? 'Diário SQLite indisponível — reinicie a Lotus'
-    : 'Memória opcional — reinicie a Lotus para activar o diário local'
+    ? 'Diário SQLite indisponível — reconectando…'
+    : 'Diário local — activa automaticamente ao iniciar'
 }
 
 function applyMenteStatus(healthy: boolean): void {
@@ -141,27 +147,58 @@ function applyMenteStatus(healthy: boolean): void {
 
   menteState = menteEverReady ? 'offline' : 'inactive'
   menteDetail = menteEverReady
-    ? `mind1 desconectado — ${MENTE_SETUP_CMD}`
+    ? `mind1 desconectado — reconectando… (${MENTE_SETUP_CMD})`
     : `Mente opcional — ${MENTE_SETUP_CMD} (Docker aberto)`
 }
 
-async function refreshMemoryHealth(): Promise<void> {
-  applyMemoriaStatus(checkSqliteHealth())
-  applyMenteStatus(await checkMenteHealth())
-  broadcastMemoryStatus()
+function serviceSnapshot(): string {
+  return JSON.stringify({
+    llm: isLlmReady(),
+    stt: getSttState(),
+    memoria: memoriaReady,
+    mente: menteReady
+  })
 }
 
-function startMemoryHealthCheck(): void {
-  if (memoryHealthTimer) return
-  memoryHealthTimer = setInterval(() => {
-    void refreshMemoryHealth()
-  }, MEMORY_HEALTH_MS)
+async function refreshServiceHealth(): Promise<void> {
+  const wasLlmReady = isLlmReady()
+
+  applyMemoriaStatus(ensureSqliteHealth())
+
+  const [, menteOk] = await Promise.all([
+    ensureSttConnection(),
+    checkMenteHealth(),
+    ensureLlmConnection()
+  ])
+
+  applyMenteStatus(menteOk)
+
+  if (!wasLlmReady && isLlmReady()) {
+    lastStatusMessage = 'Cérebro conectado automaticamente.'
+  }
+
+  const snap = serviceSnapshot()
+  if (snap !== lastServiceSnapshot) {
+    lastServiceSnapshot = snap
+    broadcastMemoryStatus()
+  }
 }
 
-function stopMemoryHealthCheck(): void {
-  if (!memoryHealthTimer) return
-  clearInterval(memoryHealthTimer)
-  memoryHealthTimer = null
+function startServiceHealthCheck(): void {
+  if (serviceHealthTimer) return
+  serviceHealthTimer = setInterval(() => {
+    if (serviceHealthBusy) return
+    serviceHealthBusy = true
+    void refreshServiceHealth().finally(() => {
+      serviceHealthBusy = false
+    })
+  }, SERVICE_HEALTH_MS)
+}
+
+function stopServiceHealthCheck(): void {
+  if (!serviceHealthTimer) return
+  clearInterval(serviceHealthTimer)
+  serviceHealthTimer = null
 }
 
 function broadcastStatus(message: string): void {
@@ -169,6 +206,10 @@ function broadcastStatus(message: string): void {
 }
 
 function broadcastMemoryStatus(): void {
+  mainWindow?.webContents.send(IPC.onStatus, buildModelStatus())
+}
+
+function broadcastSttStatus(): void {
   mainWindow?.webContents.send(IPC.onStatus, buildModelStatus())
 }
 
@@ -188,12 +229,6 @@ function registerIpc(): void {
         devLog('ipc', 'recall ok', recall.text.slice(0, 60))
         return recall
       }
-    }
-
-    const personal = tryPersonalFactShortcut(text)
-    if (personal) {
-      devLog('ipc', 'nome ok', personal.text.slice(0, 60))
-      return personal
     }
 
     const recall = await tryRecallShortcut(text)
@@ -340,7 +375,7 @@ app.whenReady().then(async () => {
   registerIpc()
 
   const recentTurns = initMemory()
-  applyMemoriaStatus(checkSqliteHealth())
+  applyMemoriaStatus(ensureSqliteHealth())
   if (memoriaReady && recentTurns.length > 0) {
     memoriaDetail = `${recentTurns.length} turno(s) carregado(s)`
   }
@@ -348,6 +383,15 @@ app.whenReady().then(async () => {
   broadcastMemoryStatus()
 
   createWindow()
+
+  onSttStatusChange(() => broadcastSttStatus())
+
+  // Ouvido (Whisper) em paralelo ao cérebro — não espera o LLM terminar.
+  devLog('stt', 'init', 'verificando ouvido (Whisper)')
+  void initStt().then((stt) => {
+    devLog('stt', stt.ready ? 'pronto' : 'falhou', stt.message.slice(0, 80))
+    broadcastSttStatus()
+  })
 
   // Load the LLM in the background so the window can show immediately.
   broadcastStatus('Carregando o cérebro da Lotus...')
@@ -363,7 +407,8 @@ app.whenReady().then(async () => {
       broadcastMemoryStatus()
     })
   }, 2500)
-  startMemoryHealthCheck()
+  startServiceHealthCheck()
+  lastServiceSnapshot = serviceSnapshot()
 
   void startGptSoVitsServer().then((ok) => {
     if (ok) console.log('[app] GPT-SoVITS voice server started')
@@ -380,7 +425,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-  stopMemoryHealthCheck()
+  stopServiceHealthCheck()
   stopGptSoVitsServer()
   shutdownQdrant()
   closeMemoryDb()

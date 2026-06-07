@@ -16,6 +16,7 @@ files:
 asarUnpack:
   - '**/node_modules/node-llama-cpp/**'
   - '**/node_modules/@node-llama-cpp/**'
+  - '**/node_modules/nodejs-whisper/**'
   - 'models/**'
 extraResources:
   - from: models
@@ -29,6 +30,11 @@ mac:
   target:
     - dmg
   category: public.app-category.productivity
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Lotus precisa do microfone para ouvir você falar.
+    NSCameraUsageDescription: Lotus usa a câmera para o avatar olhar para você.
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

@@ -14,6 +14,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "setup:models": "node scripts/setup-models.mjs",
     "setup:models:qwen": "node scripts/setup-models.mjs --qwen",
+    "setup:stt": "node scripts/setup-stt.mjs",
+    "setup:stt:tiny": "node scripts/setup-stt.mjs --model tiny",
     "setup:animations": "node scripts/setup-animations.mjs",
     "setup:live2d": "node scripts/setup-live2d.mjs",
     "setup:voice": "node scripts/generate-voice-ref.mjs && bash scripts/install-gptsovits.sh",

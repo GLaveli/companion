@@ -52,10 +52,13 @@ export interface AgentExecuteResult {
 
 /** Status reported by the main process while models load. */
 export type MemoryIndicatorState = 'ready' | 'offline' | 'inactive'
+export type SttIndicatorState = 'ready' | 'loading' | 'offline'
 
 export interface ModelStatus {
   llmReady: boolean
   sttReady: boolean
+  sttState: SttIndicatorState
+  sttDetail?: string
   message: string
   /** SQLite diary — persistent turns and events. */
   memoriaReady: boolean

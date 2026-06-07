@@ -5,7 +5,8 @@ import type {
   DevLogEntry,
   Emotion,
   MemoryIndicatorState,
-  ModelStatus
+  ModelStatus,
+  SttIndicatorState
 } from '../../shared/types'
 
 export type Phase = 'idle' | 'listening' | 'thinking' | 'speaking'
@@ -16,6 +17,9 @@ interface CompanionState {
   messages: ChatMessage[]
   statusMessage: string
   llmReady: boolean
+  sttReady: boolean
+  sttState: SttIndicatorState
+  sttDetail: string
   memoriaReady: boolean
   menteReady: boolean
   memoriaState: MemoryIndicatorState
@@ -48,6 +52,9 @@ export const useStore = create<CompanionState>((set) => ({
   messages: [],
   statusMessage: 'Iniciando...',
   llmReady: false,
+  sttReady: false,
+  sttState: 'loading',
+  sttDetail: 'Baixando ouvido (Whisper tiny)…',
   memoriaReady: false,
   menteReady: false,
   memoriaState: 'inactive',
@@ -68,6 +75,9 @@ export const useStore = create<CompanionState>((set) => ({
     set((s) => ({
       statusMessage: status.message || s.statusMessage,
       llmReady: status.llmReady,
+      sttReady: status.sttReady,
+      sttState: status.sttState ?? (status.sttReady ? 'ready' : s.sttState),
+      sttDetail: status.sttDetail ?? s.sttDetail,
       memoriaReady: status.memoriaReady,
       menteReady: status.menteReady,
       memoriaState: status.memoriaState ?? (status.memoriaReady ? 'ready' : s.memoriaState),

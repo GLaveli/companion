@@ -17,16 +17,49 @@ import { useConversation } from './hooks/useConversation'
 import { AgentConfirmDialog } from './agent'
 import { loadActiveVoiceBarLabel } from './voiceLabel'
 import { formatCpuPercent, formatRamUsage, metricsTooltip } from './systemMetricsLabel'
-import type { AvatarFile, MemoryIndicatorState, SystemMetrics } from '../../shared/types'
+import type { AvatarFile, MemoryIndicatorState, SttIndicatorState, SystemMetrics } from '../../shared/types'
 
 const PHASE_LABEL: Record<string, string> = {
   idle: 'Pronta para conversar',
-  listening: 'Ouvindo...',
+  listening: 'Ouvindo… fale e pause',
   thinking: 'Pensando...',
   speaking: 'Falando...'
 }
 
 const MENTE_SETUP_CMD = 'npm run memory:qdrant'
+
+function formatSttStatus(
+  state: SttIndicatorState,
+  detail: string
+): { shortLabel: string; tooltip: string; indicatorClass: string; dotClass: string; detail: string } {
+  if (state === 'ready') {
+    return {
+      shortLabel: 'Ouvido',
+      tooltip: detail || 'Whisper pronto — microfone liberado.',
+      indicatorClass: 'ready',
+      dotClass: 'on',
+      detail: ''
+    }
+  }
+
+  if (state === 'loading') {
+    return {
+      shortLabel: 'Ouvido',
+      tooltip: detail || 'Baixando Whisper tiny… primeira vez pode demorar.',
+      indicatorClass: 'waiting',
+      dotClass: 'loading',
+      detail: detail || 'Preparando ouvido (Whisper)…'
+    }
+  }
+
+  return {
+    shortLabel: 'Ouvido',
+    tooltip: detail || 'Ouvido indisponível — instale com npm run setup:stt ou use o teclado.',
+    indicatorClass: 'waiting',
+    dotClass: 'off',
+    detail: detail || 'Ouvido indisponível.'
+  }
+}
 
 function formatMemoryIndicator(
   state: MemoryIndicatorState,
@@ -48,8 +81,8 @@ function formatMemoryIndicator(
       shortLabel: name,
       tooltip:
         kind === 'memoria'
-          ? 'Opcional — diário SQLite indisponível. Reinicie a Lotus para reactivar.'
-          : `Opcional — mind1 desconectado. Para activar:\n${MENTE_SETUP_CMD}\n(Docker Desktop aberto)`,
+          ? 'Diário SQLite desconectado — a Lotus tenta reconectar a cada poucos segundos.'
+          : `mind1 desconectado — a Lotus tenta reconectar. Se instalou agora:\n${MENTE_SETUP_CMD}\n(Docker Desktop aberto)`,
       indicatorClass: 'waiting',
       dotClass: 'off'
     }
@@ -59,8 +92,8 @@ function formatMemoryIndicator(
     shortLabel: name,
     tooltip:
       kind === 'memoria'
-        ? 'Opcional — diário local ainda não activo. Reinicie a Lotus; o SQLite já vem incluído no app.'
-        : `Opcional — busca semântica inactiva. Para activar:\n${MENTE_SETUP_CMD}\n(Docker Desktop aberto)`,
+        ? 'Diário local incluído no app — activa ao iniciar ou quando reconectar.'
+        : `Busca semântica inactiva. Para activar:\n${MENTE_SETUP_CMD}\n(Docker Desktop aberto)`,
     indicatorClass: 'inactive',
     dotClass: 'inactive'
   }
@@ -114,6 +147,8 @@ export default function App(): React.JSX.Element {
     phase,
     statusMessage,
     llmReady,
+    sttState,
+    sttDetail,
     memoriaState,
     menteState,
     avatarName,
@@ -243,6 +278,8 @@ export default function App(): React.JSX.Element {
   }
 
   const micActive = phase === 'listening'
+  const micLoading = sttState === 'loading'
+  const micOffline = sttState === 'offline'
   const provider = useMemo(() => getAvatarProvider(avatarKind), [avatarKind])
   const llmStatus = useMemo(
     () => formatLlmStatus(llmReady, statusMessage),
@@ -253,6 +290,11 @@ export default function App(): React.JSX.Element {
     [memoriaState]
   )
   const menteStatus = useMemo(() => formatMemoryIndicator(menteState, 'mente'), [menteState])
+  const sttStatus = useMemo(() => formatSttStatus(sttState, sttDetail), [sttState, sttDetail])
+  const badgeLabel = useMemo(() => {
+    if (phase === 'idle' && micLoading) return 'Preparando ouvido…'
+    return PHASE_LABEL[phase]
+  }, [phase, micLoading])
   const cpuText = systemMetrics ? formatCpuPercent(systemMetrics.cpuPercent) : '—'
   const ramText = systemMetrics ? formatRamUsage(systemMetrics) : '—'
   const cpuTip = metricsTooltip('cpu', systemMetrics)
@@ -262,7 +304,7 @@ export default function App(): React.JSX.Element {
     <div className="app">
       <div className="stage">
         <AvatarStage />
-        <div className="badge">{PHASE_LABEL[phase]}</div>
+        <div className="badge">{badgeLabel}</div>
 
         <div className="stage-tools-dock">
           <StageToolbar
@@ -295,6 +337,12 @@ export default function App(): React.JSX.Element {
                 dotClass={llmReady ? 'on' : 'off'}
               />
               <StatusIndicator
+                label={sttStatus.shortLabel}
+                tooltip={sttStatus.tooltip}
+                indicatorClass={sttStatus.indicatorClass}
+                dotClass={sttStatus.dotClass}
+              />
+              <StatusIndicator
                 label={memoriaStatus.shortLabel}
                 tooltip={memoriaStatus.tooltip}
                 indicatorClass={memoriaStatus.indicatorClass}
@@ -308,7 +356,9 @@ export default function App(): React.JSX.Element {
               />
             </div>
           </header>
-          {llmStatus.detail ? <p className="status status--compact">{llmStatus.detail}</p> : null}
+          {sttStatus.detail || llmStatus.detail ? (
+            <p className="status status--compact">{sttStatus.detail || llmStatus.detail}</p>
+          ) : null}
 
           <div className="panel-meta" role="group" aria-label="Avatar, voz, cérebro e uso de recursos">
             <span className="panel-meta-label">Avatar</span>
@@ -349,22 +399,41 @@ export default function App(): React.JSX.Element {
         <form className="composer" onSubmit={onSubmit}>
           <button
             type="button"
-            className={`mic ${micActive ? 'recording' : ''}`}
-            onClick={() => (micActive ? void stopListening() : void startListening())}
+            className={`mic ${micActive ? 'recording' : ''} ${micLoading ? 'mic--loading' : ''}`}
+            disabled={micOffline}
+            aria-busy={micLoading}
+            onClick={() => {
+              if (micOffline) return
+              if (micLoading) return
+              if (micActive) void stopListening()
+              else void startListening()
+            }}
             title={
-              micActive
-                ? 'Parar e enviar'
-                : phase === 'speaking'
-                  ? 'Interromper e falar'
-                  : 'Falar'
+              micLoading
+                ? sttDetail
+                : micOffline
+                  ? sttDetail || 'Ouvido indisponível'
+                  : micActive
+                    ? 'Clique para enviar agora (ou pare de falar)'
+                    : phase === 'speaking'
+                      ? 'Interromper e falar'
+                      : 'Clique e fale — envia ao pausar'
             }
           >
-            {micActive ? '■' : '🎤'}
+            {micLoading ? (
+              <span className="mic-spinner" aria-hidden="true" />
+            ) : micActive ? (
+              '■'
+            ) : (
+              '🎤'
+            )}
           </button>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Fala com a Lotus..."
+            placeholder={
+              micLoading ? 'Preparando ouvido (Whisper)…' : 'Fala com a Lotus...'
+            }
           />
           <button type="submit" disabled={!input.trim()}>
             Enviar

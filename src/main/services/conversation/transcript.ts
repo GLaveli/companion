@@ -2,12 +2,16 @@ import {
   extractRecallTopic,
   getRecentEvents,
   getRecentUserMessages,
+  indexMemoryPoint,
+  isQdrantEnabled,
   persistTurn,
+  searchQdrant,
   searchRecallTopicHits,
   searchTurns
 } from '../memory'
 import { enqueueMemoryWrite } from '../memory/writeQueue'
 import { isMemoryRecallIntent } from '../intent/recallIntent'
+import { cachePersonalFactsFromText } from './personalFacts'
 
 export interface TranscriptTurn {
   role: 'user' | 'assistant'
@@ -30,6 +34,10 @@ export function recordTranscriptTurn(role: TranscriptTurn['role'], content: stri
   const at = Date.now()
   turns.push({ role, content: trimmed, at })
   while (turns.length > MAX_TURNS) turns.shift()
+
+  if (role === 'user') {
+    cachePersonalFactsFromText(trimmed)
+  }
 
   enqueueMemoryWrite(async () => {
     const saved = persistTurn(role, trimmed)

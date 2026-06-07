@@ -10,6 +10,10 @@ const BROWSER_APP = `(?:navegador|browser|chrome|safari|edge|firefox|${GOOGLE})`
 const OPEN_BROWSER_RE =
   /\b(?:abre|abrir|open|inicia|iniciar|launch)\s+(?:o\s+)?(?:navegador|browser|chrome|safari|edge|firefox)\b/i
 
+/** Erros comuns do Whisper tiny em PT («pegador», «regadura» ≈ navegador). */
+const OPEN_BROWSER_FUZZY_RE =
+  /\b(?:abre|abrir|abdo|abdi|open|inicia|iniciar|launch)\s+(?:o\s+|a\s+|na\s+|no\s+)?(?:pegador|regadura|negador|navedador|navegado|nevagador)\b/i
+
 const OPEN_GOOGLE_RE = /\b(?:abre|abrir|open|inicia)\s+(?:o\s+)?(?:google|gogle|ggolge)\b/i
 
 const SEARCH_VERB_RE = /\b(?:pesquis[ae]|busca(?:r)?|procura(?:r)?|digita|procure)\b/i
@@ -52,7 +56,9 @@ export function isMeaningfulSearchQuery(query: string, originalText?: string): b
 
   const nq = normalize(q)
 
-  if (OPEN_BROWSER_RE.test(nq) || OPEN_GOOGLE_RE.test(nq)) return false
+  if (OPEN_BROWSER_RE.test(nq) || OPEN_GOOGLE_RE.test(nq) || OPEN_BROWSER_FUZZY_RE.test(nq)) {
+    return false
+  }
   if (new RegExp(`^${BROWSER_APP}$`, 'i').test(nq)) return false
   if (SLANG_FILLER.test(nq)) return false
 
@@ -75,7 +81,8 @@ export function wantsOpenBrowserOnly(text: string): boolean {
   const t = normalize(text)
   if (t.length < 6 || isGreeting(t)) return false
 
-  const opensBrowser = OPEN_BROWSER_RE.test(t) || OPEN_GOOGLE_RE.test(t)
+  const opensBrowser =
+    OPEN_BROWSER_RE.test(t) || OPEN_GOOGLE_RE.test(t) || OPEN_BROWSER_FUZZY_RE.test(t)
   if (!opensBrowser) return false
 
   if (wantsBrowserSearch(text)) return false
@@ -120,7 +127,8 @@ export function wantsBrowserSearch(text: string): boolean {
     return isMeaningfulSearchQuery(extractBrowserSearchQuery(text), text)
   }
 
-  const hasOpenBrowser = OPEN_BROWSER_RE.test(t) || OPEN_GOOGLE_RE.test(t)
+  const hasOpenBrowser =
+    OPEN_BROWSER_RE.test(t) || OPEN_GOOGLE_RE.test(t) || OPEN_BROWSER_FUZZY_RE.test(t)
   if (hasOpenBrowser && SEARCH_VERB_RE.test(t)) {
     return isMeaningfulSearchQuery(extractBrowserSearchQuery(text), text)
   }
@@ -219,7 +227,9 @@ export function mightNeedAgentAction(text: string): boolean {
     return true
   }
 
-  if (OPEN_BROWSER_RE.test(t) || OPEN_GOOGLE_RE.test(t)) return true
+  if (OPEN_BROWSER_RE.test(t) || OPEN_GOOGLE_RE.test(t) || OPEN_BROWSER_FUZZY_RE.test(t)) {
+    return true
+  }
 
   if (/\b(?:abre|abrir|open|inicia|iniciar|launch)\s+(?:o|a|meu|minha)\s+\S/i.test(t)) {
     return true
